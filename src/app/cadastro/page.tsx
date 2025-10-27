@@ -37,8 +37,20 @@ export default function CadastroPage() {
         return;
       }
 
-      // Redirecionar para onboarding ou dashboard
-      router.push("/onboarding");
+      // Fazer login automático e redirecionar para dashboard
+      const loginResult = await signIn("credentials", {
+        email: data.email,
+        password: data.senha,
+        redirect: false,
+      });
+
+      if (loginResult?.ok) {
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        // Se login falhar, redireciona para login manual
+        router.push("/login");
+      }
     } catch (err) {
       setError("Erro ao criar conta. Tente novamente.");
       setLoading(false);

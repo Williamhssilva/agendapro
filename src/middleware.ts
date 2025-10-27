@@ -3,15 +3,28 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || '';
+  const { pathname } = request.nextUrl;
   
   // Extrair subdomain
   const subdomain = extractSubdomain(hostname);
   
   if (subdomain) {
-    // Adicionar tenant ao header para usar nas páginas
+    // TEM subdomain = Área do Cliente
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-tenant-slug', subdomain);
     
+    // Se está na raiz, redireciona para área do cliente
+    if (pathname === '/') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/(cliente)';
+      return NextResponse.rewrite(url, {
+        request: {
+          headers: requestHeaders,
+        },
+      });
+    }
+    
+    // Para outras rotas, só injeta o header
     return NextResponse.next({
       request: {
         headers: requestHeaders,
@@ -19,6 +32,7 @@ export function middleware(request: NextRequest) {
     });
   }
   
+  // SEM subdomain = Área de Marketing/Admin
   return NextResponse.next();
 }
 

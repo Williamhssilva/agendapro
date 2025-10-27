@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { verificarDisponibilidade } from "@/lib/horarios";
+import { headers } from "next/headers";
 
 // GET - Listar agendamentos
 export async function GET(request: Request) {
@@ -58,15 +59,9 @@ export async function GET(request: Request) {
   }
 }
 
-// POST - Criar novo agendamento
+// POST - Criar novo agendamento (funciona com e sem auth)
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-
-    if (!session) {
-      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-    }
-
     const body = await request.json();
     const { clienteNome, clienteTelefone, clienteEmail, servicoId, profissionalId, dataHora, observacoes } = body;
 
@@ -78,11 +73,35 @@ export async function POST(request: Request) {
       );
     }
 
+    // Identificar estabelecimento (session ou subdomain)
+    const session = await auth();
+    let estabelecimentoId: string | null = null;
+
+    if (session) {
+      // Admin logado
+      estabelecimentoId = session.user.estabelecimentoId;
+    } else {
+      // Cliente público - pega do subdomain
+      const headersList = await headers();
+      const tenantSlug = headersList.get("x-tenant-slug");
+      
+      if (tenantSlug) {
+        const tenant = await prisma.estabelecimento.findUnique({
+          where: { slug: tenantSlug },
+        });
+        estabelecimentoId = tenant?.id || null;
+      }
+    }
+
+    if (!estabelecimentoId) {
+      return NextResponse.json({ error: "Estabelecimento não identificado" }, { status: 400 });
+    }
+
     // Buscar serviço para pegar duração
     const servico = await prisma.servico.findFirst({
       where: {
         id: servicoId,
-        estabelecimentoId: session.user.estabelecimentoId,
+        estabelecimentoId,
       },
     });
 
@@ -107,7 +126,7 @@ export async function POST(request: Request) {
     // Buscar ou criar cliente
     let cliente = await prisma.cliente.findFirst({
       where: {
-        estabelecimentoId: session.user.estabelecimentoId,
+        estabelecimentoId,
         telefone: clienteTelefone,
       },
     });
@@ -115,7 +134,7 @@ export async function POST(request: Request) {
     if (!cliente) {
       cliente = await prisma.cliente.create({
         data: {
-          estabelecimentoId: session.user.estabelecimentoId,
+          estabelecimentoId,
           nome: clienteNome,
           telefone: clienteTelefone,
           email: clienteEmail || null,
@@ -126,7 +145,7 @@ export async function POST(request: Request) {
     // Criar agendamento
     const agendamento = await prisma.agendamento.create({
       data: {
-        estabelecimentoId: session.user.estabelecimentoId,
+        estabelecimentoId,
         clienteId: cliente.id,
         servicoId,
         profissionalId,
