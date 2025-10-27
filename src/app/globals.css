@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: 79 70 229; /* Indigo-600 */
+    --primary-foreground: 255 255 255;
+  }
+}
+

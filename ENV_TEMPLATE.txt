@@ -1,0 +1,74 @@
+# AgendaPro - Variáveis de Ambiente
+# Copie este arquivo para .env e preencha os valores
+
+# ==========================================
+# DATABASE (Supabase PostgreSQL)
+# ==========================================
+# 1. Acesse: https://supabase.com
+# 2. Crie novo projeto
+# 3. Settings → Database → Connection String → Session mode
+DATABASE_URL="postgresql://postgres.[PROJECT]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres"
+
+# ==========================================
+# NEXTAUTH (Autenticação)
+# ==========================================
+NEXTAUTH_URL="http://localhost:3000"
+
+# Gere com: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+# Ou: openssl rand -base64 32
+NEXTAUTH_SECRET="cole-aqui-um-secret-aleatorio-de-32-caracteres"
+
+# ==========================================
+# GOOGLE OAUTH (Opcional - para login social)
+# ==========================================
+# 1. Google Cloud Console: https://console.cloud.google.com
+# 2. Criar projeto
+# 3. APIs & Services → Credentials → Create OAuth 2.0 Client ID
+# 4. Authorized redirect URIs: http://localhost:3000/api/auth/callback/google
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+
+# ==========================================
+# MERCADO PAGO (Payments)
+# ==========================================
+# 1. Acesse: https://www.mercadopago.com.br/developers
+# 2. Suas integrações → Criar aplicação
+# 3. Credenciais de teste (para desenvolvimento)
+MERCADOPAGO_ACCESS_TOKEN=""
+MERCADOPAGO_PUBLIC_KEY=""
+
+# ==========================================
+# SENDGRID (Email)
+# ==========================================
+# 1. Acesse: https://sendgrid.com
+# 2. Settings → API Keys → Create API Key
+# 3. Free tier: 100 emails/dia
+SENDGRID_API_KEY=""
+SENDGRID_FROM_EMAIL="noreply@agendapro.com.br"
+
+# ==========================================
+# SUPABASE STORAGE (Upload de logos/imagens)
+# ==========================================
+# Mesmo projeto do banco
+# Settings → API → Project URL e anon key
+NEXT_PUBLIC_SUPABASE_URL="https://[PROJECT].supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="cole-a-anon-public-key"
+
+# ==========================================
+# EVOLUTION API (WhatsApp) - FASE 2
+# ==========================================
+# Self-hosted ou serviço de Evolution API
+EVOLUTION_API_URL=""
+EVOLUTION_API_KEY=""
+
+# ==========================================
+# APP CONFIG
+# ==========================================
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+NEXT_PUBLIC_APP_NAME="AgendaPro"
+
+# ==========================================
+# DESENVOLVIMENTO
+# ==========================================
+NODE_ENV="development"
+
