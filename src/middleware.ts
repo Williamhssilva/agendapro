@@ -13,18 +13,7 @@ export function middleware(request: NextRequest) {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-tenant-slug', subdomain);
     
-    // Se está na raiz, redireciona para área do cliente
-    if (pathname === '/') {
-      const url = request.nextUrl.clone();
-      url.pathname = '/(cliente)';
-      return NextResponse.rewrite(url, {
-        request: {
-          headers: requestHeaders,
-        },
-      });
-    }
-    
-    // Para outras rotas, só injeta o header
+    // Apenas injeta o header do tenant
     return NextResponse.next({
       request: {
         headers: requestHeaders,

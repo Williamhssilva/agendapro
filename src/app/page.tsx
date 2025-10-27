@@ -1,6 +1,113 @@
 import Link from 'next/link';
+import { getTenantBySubdomain } from '@/lib/tenant';
+import { prisma } from '@/lib/prisma';
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Verificar se é um tenant (subdomain)
+  const tenant = await getTenantBySubdomain();
+  
+  // Se tem tenant, mostrar home do cliente
+  if (tenant) {
+    // Buscar serviços ativos
+    const servicos = await prisma.servico.findMany({
+      where: {
+        estabelecimentoId: tenant.id,
+        ativo: true,
+      },
+      orderBy: { categoria: "asc" },
+    });
+
+    // Buscar profissionais ativos
+    const profissionais = await prisma.profissional.findMany({
+      where: {
+        estabelecimentoId: tenant.id,
+        ativo: true,
+      },
+      orderBy: { nome: "asc" },
+    });
+
+    // Renderizar home do cliente
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Hero */}
+        <div className="tenant-primary-bg text-white py-16">
+          <div className="max-w-7xl mx-auto px-4 text-center">
+            <h2 className="text-4xl font-bold mb-4">Agende seu horário online</h2>
+            <p className="text-xl mb-8 opacity-90">Rápido, fácil e sem complicação</p>
+            <Link
+              href="/agendar"
+              className="tenant-primary-text inline-block bg-white px-8 py-4 rounded-lg font-bold hover:bg-opacity-90 transition text-lg"
+            >
+              Agendar Agora →
+            </Link>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 py-12">
+          {/* Nossos Serviços */}
+          <div className="mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Nossos Serviços</h2>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {servicos.map((servico) => (
+                <div key={servico.id} className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
+                  <h4 className="font-bold text-gray-900 mb-2">{servico.nome}</h4>
+                  {servico.descricao && (
+                    <p className="text-sm text-gray-600 mb-4">{servico.descricao}</p>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">⏱️ {servico.duracao} min</span>
+                    <span className="tenant-primary-text text-xl font-bold">
+                      R$ {servico.preco.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Nossa Equipe */}
+          {profissionais.length > 0 && (
+            <div className="mb-12">
+              <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Nossa Equipe</h2>
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {profissionais.map((profissional) => {
+                  const iniciais = profissional.nome.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase();
+
+                  return (
+                    <div key={profissional.id} className="bg-white rounded-xl shadow-md p-6 text-center">
+                      <div className="w-20 h-20 tenant-primary-bg rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
+                        {iniciais}
+                      </div>
+                      <h3 className="font-bold text-gray-900 mb-1">{profissional.nome}</h3>
+                      {profissional.especialidade && (
+                        <p className="text-sm text-gray-600">{profissional.especialidade}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* CTA Final */}
+          <div className="text-center">
+            <div className="bg-white rounded-2xl shadow-xl p-12">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">Pronto para agendar?</h2>
+              <p className="text-gray-600 mb-8 text-lg">Escolha o melhor horário para você!</p>
+              <Link
+                href="/agendar"
+                className="tenant-primary-bg inline-block px-10 py-4 rounded-lg text-white font-bold text-lg hover:opacity-90 transition"
+              >
+                Agendar Meu Horário →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Sem tenant = Página de marketing do AgendaPro
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
       <div className="max-w-7xl mx-auto px-4 py-20">
@@ -21,50 +128,50 @@ export default function HomePage() {
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
             </svg>
-            <span>Projeto iniciado com sucesso!</span>
+            <span>Sistema funcionando!</span>
           </div>
         </div>
 
         {/* Status */}
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-2xl shadow-2xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Status do Projeto</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">✅ Implementado</h2>
             
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <span className="text-gray-700">✅ Protótipos</span>
-                  <span className="font-bold text-green-600">15 telas</span>
+                  <span className="text-gray-700">✅ Autenticação</span>
+                  <span className="font-bold text-green-600">100%</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <span className="text-gray-700">✅ Documentação</span>
-                  <span className="font-bold text-green-600">Completa</span>
+                  <span className="text-gray-700">✅ Multi-tenancy</span>
+                  <span className="font-bold text-green-600">100%</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <span className="text-gray-700">✅ Schema Prisma</span>
-                  <span className="font-bold text-green-600">Multi-tenant</span>
+                  <span className="text-gray-700">✅ CRUD Serviços</span>
+                  <span className="font-bold text-green-600">100%</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <span className="text-gray-700">✅ Estrutura Next.js</span>
-                  <span className="font-bold text-green-600">Criada</span>
+                  <span className="text-gray-700">✅ CRUD Profissionais</span>
+                  <span className="font-bold text-green-600">100%</span>
                 </div>
               </div>
               
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <span className="text-gray-700">✅ Instalação</span>
-                  <span className="font-bold text-green-600">Completo</span>
+                  <span className="text-gray-700">✅ Agendamento Admin</span>
+                  <span className="font-bold text-green-600">100%</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <span className="text-gray-700">✅ Auth</span>
-                  <span className="font-bold text-green-600">Implementado</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <span className="text-gray-700">✅ Multi-tenancy</span>
-                  <span className="font-bold text-green-600">Implementado</span>
+                  <span className="text-gray-700">✅ Área do Cliente</span>
+                  <span className="font-bold text-green-600">100%</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                  <span className="text-gray-700">⏳ Features Core</span>
+                  <span className="text-gray-700">⏳ Billing</span>
+                  <span className="font-bold text-blue-600">Próximo</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <span className="text-gray-700">⏳ Notificações</span>
                   <span className="font-bold text-blue-600">Próximo</span>
                 </div>
               </div>
@@ -100,19 +207,18 @@ export default function HomePage() {
               </Link>
               
               <a 
-                href="http://localhost:5555"
-                target="_blank"
+                href="http://demo.localhost:3000"
                 className="bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-xl p-4 transition"
               >
-                <h3 className="font-bold mb-1">🗄️ Prisma Studio</h3>
-                <p className="text-sm text-indigo-100">Ver banco de dados</p>
+                <h3 className="font-bold mb-1">👤 Site do Cliente (Demo)</h3>
+                <p className="text-sm text-indigo-100">Ver como cliente vê</p>
               </a>
             </div>
           </div>
 
           {/* Features Implementadas */}
           <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">✅ Implementado</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">🎯 Progresso do MVP: 40%</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="flex items-start space-x-3">
                 <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -130,7 +236,7 @@ export default function HomePage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">Multi-Tenancy</h3>
-                  <p className="text-sm text-gray-600">Detecção por subdomain e isolamento</p>
+                  <p className="text-sm text-gray-600">Isolamento perfeito por estabelecimento</p>
                 </div>
               </div>
               
@@ -139,18 +245,18 @@ export default function HomePage() {
                   <span className="text-green-600 font-bold">✓</span>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Dashboard Admin</h3>
-                  <p className="text-sm text-gray-600">Painel com estatísticas em tempo real</p>
+                  <h3 className="font-semibold text-gray-900">CRUDs Completos</h3>
+                  <p className="text-sm text-gray-600">Serviços, Profissionais e Agendamentos</p>
                 </div>
               </div>
               
               <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="text-blue-600 font-bold">⏳</span>
+                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="text-green-600 font-bold">✓</span>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">CRUD Features</h3>
-                  <p className="text-sm text-gray-600">Serviços e Profissionais (próximo)</p>
+                  <h3 className="font-semibold text-gray-900">Área do Cliente</h3>
+                  <p className="text-sm text-gray-600">White-label + Agendamento online</p>
                 </div>
               </div>
             </div>
@@ -160,4 +266,3 @@ export default function HomePage() {
     </div>
   );
 }
-
