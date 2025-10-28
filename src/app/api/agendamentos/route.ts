@@ -146,7 +146,13 @@ export async function POST(request: Request) {
     const dataAlvo = new Date(dataHora);
     const diaChave = `${dataAlvo.getUTCFullYear()}-${String(dataAlvo.getUTCMonth()+1).padStart(2,'0')}-${String(dataAlvo.getUTCDate()).padStart(2,'0')}`;
 
-    const agendamento = await prisma.$transaction(async (tx) => {
+    // Retry simples para conflitos de escrita (P2034)
+    const MAX_RETRY = 3;
+    let lastErr: any = null;
+    let agendamento: any = null;
+    for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+      try {
+        agendamento = await prisma.$transaction(async (tx) => {
       // Bloqueio transacional por profissional+dia (evita corridas simultâneas)
       await tx.$executeRawUnsafe(
         "SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))",
@@ -184,7 +190,9 @@ export async function POST(request: Request) {
       })();
 
       if (!aindaDisponivel) {
-        throw Object.assign(new Error("CONFLICT"), { code: "TIME_CONFLICT" });
+        const err: any = new Error("TIME_CONFLICT");
+        err.code = "TIME_CONFLICT";
+        throw err;
       }
 
       // Buscar ou criar cliente dentro da transação
@@ -202,7 +210,7 @@ export async function POST(request: Request) {
         });
       }
 
-      return await tx.agendamento.create({
+          return await tx.agendamento.create({
         data: {
           estabelecimentoId,
           clienteId: cliente.id,
@@ -214,8 +222,19 @@ export async function POST(request: Request) {
           observacoes: observacoes || null,
         },
         include: { cliente: true, servico: true, profissional: true },
-      });
-    }, { isolationLevel: 'Serializable' });
+          });
+        }, { isolationLevel: 'Serializable' });
+        break; // sucesso
+      } catch (e: any) {
+        lastErr = e;
+        // Prisma P2034: write conflict/deadlock → tenta novamente
+        if (e?.code === 'P2034' && attempt < MAX_RETRY) {
+          continue;
+        }
+        // Repropaga outros erros
+        throw e;
+      }
+    }
 
     console.log("✅ Agendamento criado:", {
       id: agendamento.id,
@@ -225,10 +244,25 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(agendamento, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
+    // Conflito detectado pela camada de aplicação/transação
+    if (error?.code === 'TIME_CONFLICT' || error?.message === 'TIME_CONFLICT') {
+      return NextResponse.json(
+        { error: "Este horário acabou de ser ocupado por outro cliente. Tente outro horário." },
+        { status: 409 }
+      );
+    }
+    // Conflito/Deadlock mesmo após retries
+    if (error?.code === 'P2034') {
+      return NextResponse.json(
+        { error: "Conflito de concorrência. O horário acabou de ser ocupado. Tente outro." },
+        { status: 409 }
+      );
+    }
+    // Prisma/Postgres errors mapeáveis (opcionalmente tratar P2002, etc.)
     console.error("Erro ao criar agendamento:", error);
     return NextResponse.json(
-      { error: "Erro ao criar agendamento" },
+      { error: "Erro ao criar agendamento. Tente novamente." },
       { status: 500 }
     );
   }
