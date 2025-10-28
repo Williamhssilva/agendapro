@@ -9,7 +9,7 @@ import { startOfDay, endOfDay, addDays, subDays } from "date-fns";
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ data?: string; profissionalId?: string }>;
+  searchParams: Promise<{ data?: string; profissionalId?: string; status?: string }>;
 }) {
   const session = await auth();
 
@@ -37,6 +37,9 @@ export default async function AgendaPage({
 
   if (params.profissionalId) {
     where.profissionalId = params.profissionalId;
+  }
+  if (params.status && ["pendente","confirmado","concluido","cancelado"].includes(params.status)) {
+    where.status = params.status;
   }
 
   const agendamentos = await prisma.agendamento.findMany({
@@ -158,6 +161,29 @@ export default async function AgendaPage({
 
       {/* Content */}
       <div className="px-4 sm:px-6 lg:px-8 py-8">
+        {/* Filtro de Status */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-gray-600">Status:</span>
+            {[
+              { k: "", l: "Todos" },
+              { k: "pendente", l: "Pendentes" },
+              { k: "confirmado", l: "Confirmados" },
+              { k: "concluido", l: "Concluídos" },
+              { k: "cancelado", l: "Cancelados" },
+            ].map(s => (
+              <Link
+                key={s.k || 'todos'}
+                href={`/agenda?data=${dataStr}${params.profissionalId ? `&profissionalId=${params.profissionalId}` : ''}${s.k ? `&status=${s.k}` : ''}`}
+                className={`px-3 py-1 rounded border ${
+                  (params.status || '') === s.k ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {s.l}
+              </Link>
+            ))}
+          </div>
+        </div>
         {/* Navegação de Datas (Mini Calendário) */}
         {diasComAgendamentos.length > 0 && (
           <div className="bg-gradient-to-r from-indigo-600 to-purple-700 rounded-lg shadow p-4 mb-6 text-white">

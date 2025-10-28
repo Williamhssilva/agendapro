@@ -40,10 +40,21 @@ export default async function ConfirmacaoPage({
           </svg>
         </div>
 
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Agendamento Confirmado!</h1>
-        <p className="text-gray-600 mb-8">
-          Seu horário foi reservado com sucesso. Em breve você receberá uma confirmação por WhatsApp.
-        </p>
+        {agendamento?.status === 'pendente' ? (
+          <>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Pedido recebido!</h1>
+            <p className="text-gray-600 mb-8">
+              Seu pedido de agendamento foi enviado e está aguardando confirmação do estabelecimento.
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Agendamento Confirmado!</h1>
+            <p className="text-gray-600 mb-8">
+              Seu horário foi reservado com sucesso. Em breve você receberá uma confirmação por WhatsApp.
+            </p>
+          </>
+        )}
 
         {/* Resumo do Agendamento */}
         {agendamento && (

@@ -124,8 +124,7 @@ export default function AgendarPage() {
   const servicoAtual = servicos.find(s => s.id === servicoSelecionado);
   const profissionalAtual = profissionais.find(p => p.id === profissionalSelecionado);
 
-  const dataMinima = new Date();
-  dataMinima.setDate(dataMinima.getDate() + 1); // Mínimo amanhã
+  const dataMinima = new Date(); // permite hoje; slots de hoje serão filtrados pela antecedência mínima (2h)
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">

@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { format, addMinutes, parse, isBefore, isAfter } from "date-fns";
+import { format, addMinutes, parse, isBefore, isAfter, startOfDay, endOfDay } from "date-fns";
 
 /**
  * Calcula horários disponíveis para um profissional em uma data
@@ -39,26 +39,41 @@ export async function calcularHorariosDisponiveis({
   });
 
   const intervaloMinutos = configuracao?.intervaloMinutos || 0;
+  // Antecedência mínima: regra atual exige 2h no mínimo
+  const antecedenciaMinimaConfig = configuracao?.antecedenciaMinima ?? 0;
+  const antecedenciaMinimaMinutos = Math.max(antecedenciaMinimaConfig, 120);
+  
+  // Verificar se é hoje para aplicar antecedência mínima
+  const hoje = new Date();
+  
+  // Converter data UTC para local (Brasil UTC-3)
+  const dataLocal = new Date(data.getTime() + (3 * 60 * 60 * 1000));
+  const hojeLocal = new Date(hoje.getTime() + (3 * 60 * 60 * 1000));
+  
+  const dataSelecionada = new Date(dataLocal.getFullYear(), dataLocal.getMonth(), dataLocal.getDate());
+  const hojeComparacao = new Date(hojeLocal.getFullYear(), hojeLocal.getMonth(), hojeLocal.getDate());
+  const ehHoje = dataSelecionada.getTime() === hojeComparacao.getTime();
+  
 
   // 4. Parse dos horários de trabalho
   const horarios = JSON.parse(profissional.horariosTrabalho);
-  const diaSemana = getDiaSemana(data);
+  const diaSemana = getDiaSemana(dataLocal);
   const horarioDia = horarios[diaSemana];
 
   if (!horarioDia || !horarioDia.aberto) {
     return []; // Profissional não trabalha neste dia
   }
 
-  // 5. Buscar agendamentos do profissional neste dia (limites em UTC para evitar problemas de fuso)
-  const startUtc = new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate(), 0, 0, 0, 0));
-  const endUtc = new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate(), 23, 59, 59, 999));
+  // 5. Buscar agendamentos do profissional neste dia (usando limites do dia local)
+  const inicioDia = startOfDay(dataLocal);
+  const fimDia = endOfDay(dataLocal);
 
   const agendamentos = await prisma.agendamento.findMany({
     where: {
       profissionalId,
       dataHora: {
-        gte: startUtc,
-        lte: endUtc,
+        gte: inicioDia,
+        lte: fimDia,
       },
       status: {
         in: ["pendente", "confirmado"],
@@ -75,6 +90,8 @@ export async function calcularHorariosDisponiveis({
   const horaFim = parse(horarioDia.fim, "HH:mm", data);
 
   let horaAtual = horaInicio;
+  const agora = new Date();
+  const limiteMinimo = addMinutes(agora, antecedenciaMinimaMinutos);
 
   while (isBefore(horaAtual, horaFim)) {
     const horaFimSlot = addMinutes(horaAtual, servico.duracao);
@@ -82,6 +99,16 @@ export async function calcularHorariosDisponiveis({
     // Verificar se o slot completo cabe no horário de trabalho
     if (isAfter(horaFimSlot, horaFim)) {
       break;
+    }
+
+    // Respeitar antecedência mínima apenas se for hoje
+    if (ehHoje) {
+      const slotHora = horaAtual.getHours() * 60 + horaAtual.getMinutes();
+      const limiteHora = limiteMinimo.getHours() * 60 + limiteMinimo.getMinutes();
+      if (slotHora < limiteHora) {
+        horaAtual = addMinutes(horaAtual, servico.duracao + intervaloMinutos);
+        continue;
+      }
     }
 
     // Verificar se não conflita com agendamentos existentes
@@ -139,9 +166,11 @@ export async function verificarDisponibilidade({
 }) {
   const fimAgendamento = addMinutes(dataHora, duracao);
 
-  // Buscar todos os agendamentos do dia para verificar sobreposição corretamente (usando UTC)
-  const inicioDia = new Date(Date.UTC(dataHora.getUTCFullYear(), dataHora.getUTCMonth(), dataHora.getUTCDate(), 0, 0, 0, 0));
-  const fimDia = new Date(Date.UTC(dataHora.getUTCFullYear(), dataHora.getUTCMonth(), dataHora.getUTCDate(), 23, 59, 59, 999));
+  // Buscar todos os agendamentos do dia para verificar sobreposição corretamente
+  // Converter dataHora UTC para local (Brasil UTC-3)
+  const dataHoraLocal = new Date(dataHora.getTime() + (3 * 60 * 60 * 1000));
+  const inicioDia = startOfDay(dataHoraLocal);
+  const fimDia = endOfDay(dataHoraLocal);
 
   const agendamentos = await prisma.agendamento.findMany({
     where: {
@@ -154,10 +183,6 @@ export async function verificarDisponibilidade({
     include: { servico: true },
   });
 
-  console.log(`🔍 Verificando disponibilidade: ${dataHora.toISOString()} (${dataHora.getHours()}:${dataHora.getMinutes().toString().padStart(2, '0')})`);
-  console.log(`📅 Buscando agendamentos entre: ${inicioDia.toISOString()} e ${fimDia.toISOString()}`);
-  console.log(`📊 Encontrados ${agendamentos.length} agendamentos no dia`);
-
   for (const agendamento of agendamentos) {
     const agendamentoInicio = new Date(agendamento.dataHora);
     const agendamentoFim = addMinutes(agendamentoInicio, agendamento.servico.duracao);
@@ -168,12 +193,8 @@ export async function verificarDisponibilidade({
     const agendamentoInicioTime = agendamentoInicio.getHours() * 60 + agendamentoInicio.getMinutes();
     const agendamentoFimTime = agendamentoFim.getHours() * 60 + agendamentoFim.getMinutes();
     
-    console.log(`⏰ Agendamento existente: ${agendamentoInicio.toISOString()} (${agendamentoInicio.getHours()}:${agendamentoInicio.getMinutes().toString().padStart(2, '0')}) - ${agendamentoFim.getHours()}:${agendamentoFim.getMinutes().toString().padStart(2, '0')}`);
-    console.log(`🆚 Comparando: ${dataHora.getHours()}:${dataHora.getMinutes().toString().padStart(2, '0')}-${fimAgendamento.getHours()}:${fimAgendamento.getMinutes().toString().padStart(2, '0')} vs ${agendamentoInicio.getHours()}:${agendamentoInicio.getMinutes().toString().padStart(2, '0')}-${agendamentoFim.getHours()}:${agendamentoFim.getMinutes().toString().padStart(2, '0')}`);
-    
     // Sobreposição: novoInicio < existenteFim && novoFim > existenteInicio
     if (novoInicioTime < agendamentoFimTime && novoFimTime > agendamentoInicioTime) {
-      console.log(`❌ CONFLITO DETECTADO!`);
       return false;
     }
   }

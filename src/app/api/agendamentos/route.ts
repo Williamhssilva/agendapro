@@ -109,11 +109,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Serviço não encontrado" }, { status: 404 });
     }
 
+    // Antecedência mínima (2h no mínimo)
+    const config = await prisma.configuracao.findUnique({ where: { estabelecimentoId } });
+    const antecedenciaMinimaConfig = config?.antecedenciaMinima ?? 0;
+    const antecedenciaMinimaMin = Math.max(antecedenciaMinimaConfig, 120);
+    const agora = new Date();
+    const dataAlvo = new Date(dataHora);
+    const limiteMinimo = new Date(agora.getTime() + antecedenciaMinimaMin * 60000);
+    if (dataAlvo < limiteMinimo) {
+      return NextResponse.json(
+        { error: `Agendamentos devem ser feitos com pelo menos ${antecedenciaMinimaMin} minutos de antecedência.` },
+        { status: 400 }
+      );
+    }
+
     // Verificar disponibilidade
     const disponivel = await verificarDisponibilidade({
       estabelecimentoId,
       profissionalId,
-      dataHora: new Date(dataHora),
+      dataHora: dataAlvo,
       duracao: servico.duracao,
     });
 
@@ -210,7 +224,9 @@ export async function POST(request: Request) {
         });
       }
 
-          return await tx.agendamento.create({
+      // Status: admin confirma automaticamente, público fica pendente
+      const status = session ? "confirmado" : "pendente";
+      return await tx.agendamento.create({
         data: {
           estabelecimentoId,
           clienteId: cliente.id,
@@ -218,7 +234,7 @@ export async function POST(request: Request) {
           profissionalId,
           dataHora: new Date(dataHora),
           duracao: servico.duracao,
-          status: "confirmado",
+          status,
           observacoes: observacoes || null,
         },
         include: { cliente: true, servico: true, profissional: true },
