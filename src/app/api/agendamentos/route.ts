@@ -142,43 +142,80 @@ export async function POST(request: Request) {
       );
     }
 
-    // Buscar ou criar cliente
-    let cliente = await prisma.cliente.findFirst({
-      where: {
-        estabelecimentoId,
-        telefone: clienteTelefone,
-      },
-    });
+    // Criar dentro de transação serializável com advisory lock por profissional+dia
+    const dataAlvo = new Date(dataHora);
+    const diaChave = `${dataAlvo.getUTCFullYear()}-${String(dataAlvo.getUTCMonth()+1).padStart(2,'0')}-${String(dataAlvo.getUTCDate()).padStart(2,'0')}`;
 
-    if (!cliente) {
-      cliente = await prisma.cliente.create({
+    const agendamento = await prisma.$transaction(async (tx) => {
+      // Bloqueio transacional por profissional+dia (evita corridas simultâneas)
+      await tx.$executeRawUnsafe(
+        "SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))",
+        profissionalId,
+        diaChave
+      );
+
+      // Revalidar disponibilidade dentro da transação
+      const aindaDisponivel = await (async () => {
+        const inicioDia = new Date(Date.UTC(dataAlvo.getUTCFullYear(), dataAlvo.getUTCMonth(), dataAlvo.getUTCDate(), 0, 0, 0, 0));
+        const fimDia = new Date(Date.UTC(dataAlvo.getUTCFullYear(), dataAlvo.getUTCMonth(), dataAlvo.getUTCDate(), 23, 59, 59, 999));
+        const existentes = await tx.agendamento.findMany({
+          where: {
+            estabelecimentoId,
+            profissionalId,
+            status: { in: ["pendente", "confirmado"] },
+            dataHora: { gte: inicioDia, lte: fimDia },
+          },
+          include: { servico: true },
+        });
+        const novoInicio = new Date(dataHora);
+        const novoFim = new Date(novoInicio.getTime() + servico.duracao * 60000);
+        const novoInicioTime = novoInicio.getHours() * 60 + novoInicio.getMinutes();
+        const novoFimTime = novoFim.getHours() * 60 + novoFim.getMinutes();
+        for (const ag of existentes) {
+          const eInicio = new Date(ag.dataHora);
+          const eFim = new Date(eInicio.getTime() + ag.servico.duracao * 60000);
+          const eInicioTime = eInicio.getHours() * 60 + eInicio.getMinutes();
+          const eFimTime = eFim.getHours() * 60 + eFim.getMinutes();
+          if (novoInicioTime < eFimTime && novoFimTime > eInicioTime) {
+            return false;
+          }
+        }
+        return true;
+      })();
+
+      if (!aindaDisponivel) {
+        throw Object.assign(new Error("CONFLICT"), { code: "TIME_CONFLICT" });
+      }
+
+      // Buscar ou criar cliente dentro da transação
+      let cliente = await tx.cliente.findFirst({
+        where: { estabelecimentoId, telefone: clienteTelefone },
+      });
+      if (!cliente) {
+        cliente = await tx.cliente.create({
+          data: {
+            estabelecimentoId,
+            nome: clienteNome,
+            telefone: clienteTelefone,
+            email: clienteEmail || null,
+          },
+        });
+      }
+
+      return await tx.agendamento.create({
         data: {
           estabelecimentoId,
-          nome: clienteNome,
-          telefone: clienteTelefone,
-          email: clienteEmail || null,
+          clienteId: cliente.id,
+          servicoId,
+          profissionalId,
+          dataHora: new Date(dataHora),
+          duracao: servico.duracao,
+          status: "confirmado",
+          observacoes: observacoes || null,
         },
+        include: { cliente: true, servico: true, profissional: true },
       });
-    }
-
-    // Criar agendamento
-    const agendamento = await prisma.agendamento.create({
-      data: {
-        estabelecimentoId,
-        clienteId: cliente.id,
-        servicoId,
-        profissionalId,
-        dataHora: new Date(dataHora),
-        duracao: servico.duracao,
-        status: "confirmado",
-        observacoes: observacoes || null,
-      },
-      include: {
-        cliente: true,
-        servico: true,
-        profissional: true,
-      },
-    });
+    }, { isolationLevel: 'Serializable' });
 
     console.log("✅ Agendamento criado:", {
       id: agendamento.id,
