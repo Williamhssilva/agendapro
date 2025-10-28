@@ -18,17 +18,60 @@ export default async function HomePage() {
     });
 
     // Buscar profissionais ativos
-    const profissionais = await prisma.profissional.findMany({
-      where: {
-        estabelecimentoId: tenant.id,
-        ativo: true,
-      },
-      orderBy: { nome: "asc" },
-    });
+     const profissionais = await prisma.profissional.findMany({
+       where: {
+         estabelecimentoId: tenant.id,
+         ativo: true,
+       },
+       orderBy: { nome: "asc" },
+     });
+ 
+     const corPrimaria = tenant.corPrimaria || "#4F46E5";
 
-    // Renderizar home do cliente
-    return (
-      <div className="min-h-screen bg-gray-50">
+     // Renderizar home do cliente
+     return (
+       <div className="min-h-screen bg-gray-50">
+         {/* Aplicar cor do tenant via CSS */}
+         <style dangerouslySetInnerHTML={{ __html: `
+           .tenant-primary-bg {
+             background-color: ${corPrimaria};
+           }
+           .tenant-primary-text {
+             color: ${corPrimaria};
+           }
+         `}} />
+
+         {/* Header */}
+         <header className="bg-white shadow-sm sticky top-0 z-50">
+           <div className="max-w-7xl mx-auto px-4 py-4">
+             <div className="flex items-center justify-between">
+               <div className="flex items-center space-x-3">
+                 {tenant.logoUrl ? (
+                   <img src={tenant.logoUrl} alt={tenant.nome} className="h-12 w-12 object-cover rounded-lg" />
+                 ) : (
+                   <div className="tenant-primary-bg h-12 w-12 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                     {tenant.nome.substring(0, 2).toUpperCase()}
+                   </div>
+                 )}
+                 <div>
+                   <h1 className="text-xl font-bold text-gray-900">{tenant.nome}</h1>
+                   {tenant.cidade && (
+                     <p className="text-xs text-gray-600">📍 {tenant.cidade}, {tenant.estado}</p>
+                   )}
+                 </div>
+               </div>
+               
+               <Link
+                 href="/agendar"
+                 className="tenant-primary-bg px-6 py-2 rounded-lg text-white font-medium hover:opacity-90 transition"
+               >
+                 Agendar
+               </Link>
+             </div>
+           </div>
+         </header>
+
+         {/* Main Content */}
         {/* Hero */}
         <div className="tenant-primary-bg text-white py-16">
           <div className="max-w-7xl mx-auto px-4 text-center">
