@@ -13,7 +13,16 @@ export function middleware(request: NextRequest) {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-tenant-slug', subdomain);
     
-    // Apenas injeta o header do tenant
+    // Se está na raiz, reescreve para /loja (rota dentro do grupo /(cliente))
+    if (pathname === '/') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/loja';
+      return NextResponse.rewrite(url, {
+        request: { headers: requestHeaders },
+      });
+    }
+    
+    // Para demais rotas, apenas injeta o header do tenant
     return NextResponse.next({
       request: {
         headers: requestHeaders,

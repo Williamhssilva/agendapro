@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { format, addMinutes, parse, isBefore, isAfter, isSameDay } from "date-fns";
+import { format, addMinutes, parse, isBefore, isAfter } from "date-fns";
 
 /**
  * Calcula horários disponíveis para um profissional em uma data
@@ -49,18 +49,16 @@ export async function calcularHorariosDisponiveis({
     return []; // Profissional não trabalha neste dia
   }
 
-  // 5. Buscar agendamentos do profissional neste dia
-  const inicioDia = new Date(data);
-  inicioDia.setHours(0, 0, 0, 0);
-  const fimDia = new Date(data);
-  fimDia.setHours(23, 59, 59, 999);
+  // 5. Buscar agendamentos do profissional neste dia (limites em UTC para evitar problemas de fuso)
+  const startUtc = new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate(), 0, 0, 0, 0));
+  const endUtc = new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate(), 23, 59, 59, 999));
 
   const agendamentos = await prisma.agendamento.findMany({
     where: {
       profissionalId,
       dataHora: {
-        gte: inicioDia,
-        lte: fimDia,
+        gte: startUtc,
+        lte: endUtc,
       },
       status: {
         in: ["pendente", "confirmado"],
@@ -91,10 +89,16 @@ export async function calcularHorariosDisponiveis({
       const agendamentoInicio = new Date(agendamento.dataHora);
       const agendamentoFim = addMinutes(agendamentoInicio, agendamento.servico.duracao);
 
-      // Verifica se há sobreposição
+      // Comparar apenas os horários (HH:mm), não as datas completas
+      const horaAtualTime = horaAtual.getHours() * 60 + horaAtual.getMinutes();
+      const horaFimSlotTime = horaFimSlot.getHours() * 60 + horaFimSlot.getMinutes();
+      const agendamentoInicioTime = agendamentoInicio.getHours() * 60 + agendamentoInicio.getMinutes();
+      const agendamentoFimTime = agendamentoFim.getHours() * 60 + agendamentoFim.getMinutes();
+
+      // Verifica se há sobreposição de horários
       return (
-        (isBefore(horaAtual, agendamentoFim) && isAfter(horaFimSlot, agendamentoInicio)) ||
-        horaAtual.getTime() === agendamentoInicio.getTime()
+        (horaAtualTime < agendamentoFimTime && horaFimSlotTime > agendamentoInicioTime) ||
+        horaAtualTime === agendamentoInicioTime
       );
     });
 
@@ -121,11 +125,13 @@ function getDiaSemana(data: Date): string {
  * Verifica se um horário está disponível
  */
 export async function verificarDisponibilidade({
+  estabelecimentoId,
   profissionalId,
   dataHora,
   duracao,
   agendamentoIdExcluir,
 }: {
+  estabelecimentoId: string;
   profissionalId: string;
   dataHora: Date;
   duracao: number;
@@ -133,37 +139,35 @@ export async function verificarDisponibilidade({
 }) {
   const fimAgendamento = addMinutes(dataHora, duracao);
 
-  // Buscar agendamentos conflitantes
+  // Buscar todos os agendamentos do dia para verificar sobreposição corretamente
+  const inicioDia = new Date(dataHora);
+  inicioDia.setHours(0, 0, 0, 0);
+  const fimDia = new Date(dataHora);
+  fimDia.setHours(23, 59, 59, 999);
+
   const agendamentos = await prisma.agendamento.findMany({
     where: {
+      estabelecimentoId,
       profissionalId,
       id: agendamentoIdExcluir ? { not: agendamentoIdExcluir } : undefined,
-      status: {
-        in: ["pendente", "confirmado"],
-      },
-      OR: [
-        {
-          // Início do novo agendamento cai durante um agendamento existente
-          dataHora: {
-            lte: dataHora,
-          },
-          // Calculamos o fim baseado na duração
-        },
-      ],
+      status: { in: ["pendente", "confirmado"] },
+      dataHora: { gte: inicioDia, lte: fimDia },
     },
-    include: {
-      servico: true,
-    },
+    include: { servico: true },
   });
 
-  // Verificar sobreposição manualmente
   for (const agendamento of agendamentos) {
     const agendamentoInicio = new Date(agendamento.dataHora);
     const agendamentoFim = addMinutes(agendamentoInicio, agendamento.servico.duracao);
-
-    // Há sobreposição se:
-    // - Novo início < existente fim E novo fim > existente início
-    if (isBefore(dataHora, agendamentoFim) && isAfter(fimAgendamento, agendamentoInicio)) {
+    
+    // Comparar apenas os horários (HH:mm), não as datas completas
+    const novoInicioTime = dataHora.getHours() * 60 + dataHora.getMinutes();
+    const novoFimTime = fimAgendamento.getHours() * 60 + fimAgendamento.getMinutes();
+    const agendamentoInicioTime = agendamentoInicio.getHours() * 60 + agendamentoInicio.getMinutes();
+    const agendamentoFimTime = agendamentoFim.getHours() * 60 + agendamentoFim.getMinutes();
+    
+    // Sobreposição: novoInicio < existenteFim && novoFim > existenteInicio
+    if (novoInicioTime < agendamentoFimTime && novoFimTime > agendamentoInicioTime) {
       return false;
     }
   }

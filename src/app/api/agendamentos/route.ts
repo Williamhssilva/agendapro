@@ -111,6 +111,7 @@ export async function POST(request: Request) {
 
     // Verificar disponibilidade
     const disponivel = await verificarDisponibilidade({
+      estabelecimentoId,
       profissionalId,
       dataHora: new Date(dataHora),
       duracao: servico.duracao,
