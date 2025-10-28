@@ -98,7 +98,14 @@ export default function AgendarPage() {
 
       if (!response.ok) {
         const result = await response.json();
-        setError(result.error || "Erro ao criar agendamento");
+        // Se o horário foi tomado no meio do caminho, mostra mensagem amigável e recarrega horários
+        if (response.status === 400 || response.status === 409) {
+          setError(result.error || "Este horário acabou de ser ocupado. Selecione outro.");
+          await buscarHorarios();
+          setHorarioSelecionado("");
+        } else {
+          setError(result.error || "Erro ao criar agendamento");
+        }
         setLoading(false);
         return;
       }
@@ -231,8 +238,10 @@ export default function AgendarPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                    {horariosDisponiveis.map((horario) => (
-                      <label key={horario} className="cursor-pointer">
+                    {horariosDisponiveis.map((horario) => {
+                      const disabled = loading || loadingHorarios;
+                      return (
+                      <label key={horario} className={disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}>
                         <input
                           type="radio"
                           name="horario"
@@ -241,12 +250,13 @@ export default function AgendarPage() {
                           onChange={(e) => setHorarioSelecionado(e.target.value)}
                           className="sr-only peer"
                           required
+                          disabled={disabled}
                         />
-                        <div className="py-3 px-2 text-center border-2 border-gray-200 rounded-lg peer-checked:border-indigo-600 peer-checked:bg-indigo-50 hover:border-gray-300 transition font-medium">
+                        <div className={"py-3 px-2 text-center border-2 border-gray-200 rounded-lg peer-checked:border-indigo-600 peer-checked:bg-indigo-50 transition font-medium " + (disabled ? "pointer-events-none" : "hover:border-gray-300") }>
                           {horario}
                         </div>
                       </label>
-                    ))}
+                    );})}
                   </div>
                 )}
               </div>

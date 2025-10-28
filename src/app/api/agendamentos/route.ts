@@ -124,6 +124,24 @@ export async function POST(request: Request) {
       );
     }
 
+    // Verificação adicional: buscar agendamentos exatos no mesmo horário (proteção contra corrida)
+    const agendamentoExistente = await prisma.agendamento.findFirst({
+      where: {
+        estabelecimentoId,
+        profissionalId,
+        dataHora: new Date(dataHora),
+        status: { in: ["pendente", "confirmado"] },
+      },
+    });
+
+    if (agendamentoExistente) {
+      console.log(`❌ DUPLICAÇÃO DETECTADA! Agendamento ${agendamentoExistente.id} já existe no horário ${dataHora}`);
+      return NextResponse.json(
+        { error: "Este horário acabou de ser ocupado por outro cliente. Tente outro horário." },
+        { status: 409 }
+      );
+    }
+
     // Buscar ou criar cliente
     let cliente = await prisma.cliente.findFirst({
       where: {

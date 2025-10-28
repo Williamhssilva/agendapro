@@ -139,11 +139,9 @@ export async function verificarDisponibilidade({
 }) {
   const fimAgendamento = addMinutes(dataHora, duracao);
 
-  // Buscar todos os agendamentos do dia para verificar sobreposição corretamente
-  const inicioDia = new Date(dataHora);
-  inicioDia.setHours(0, 0, 0, 0);
-  const fimDia = new Date(dataHora);
-  fimDia.setHours(23, 59, 59, 999);
+  // Buscar todos os agendamentos do dia para verificar sobreposição corretamente (usando UTC)
+  const inicioDia = new Date(Date.UTC(dataHora.getUTCFullYear(), dataHora.getUTCMonth(), dataHora.getUTCDate(), 0, 0, 0, 0));
+  const fimDia = new Date(Date.UTC(dataHora.getUTCFullYear(), dataHora.getUTCMonth(), dataHora.getUTCDate(), 23, 59, 59, 999));
 
   const agendamentos = await prisma.agendamento.findMany({
     where: {
@@ -156,6 +154,10 @@ export async function verificarDisponibilidade({
     include: { servico: true },
   });
 
+  console.log(`🔍 Verificando disponibilidade: ${dataHora.toISOString()} (${dataHora.getHours()}:${dataHora.getMinutes().toString().padStart(2, '0')})`);
+  console.log(`📅 Buscando agendamentos entre: ${inicioDia.toISOString()} e ${fimDia.toISOString()}`);
+  console.log(`📊 Encontrados ${agendamentos.length} agendamentos no dia`);
+
   for (const agendamento of agendamentos) {
     const agendamentoInicio = new Date(agendamento.dataHora);
     const agendamentoFim = addMinutes(agendamentoInicio, agendamento.servico.duracao);
@@ -166,8 +168,12 @@ export async function verificarDisponibilidade({
     const agendamentoInicioTime = agendamentoInicio.getHours() * 60 + agendamentoInicio.getMinutes();
     const agendamentoFimTime = agendamentoFim.getHours() * 60 + agendamentoFim.getMinutes();
     
+    console.log(`⏰ Agendamento existente: ${agendamentoInicio.toISOString()} (${agendamentoInicio.getHours()}:${agendamentoInicio.getMinutes().toString().padStart(2, '0')}) - ${agendamentoFim.getHours()}:${agendamentoFim.getMinutes().toString().padStart(2, '0')}`);
+    console.log(`🆚 Comparando: ${dataHora.getHours()}:${dataHora.getMinutes().toString().padStart(2, '0')}-${fimAgendamento.getHours()}:${fimAgendamento.getMinutes().toString().padStart(2, '0')} vs ${agendamentoInicio.getHours()}:${agendamentoInicio.getMinutes().toString().padStart(2, '0')}-${agendamentoFim.getHours()}:${agendamentoFim.getMinutes().toString().padStart(2, '0')}`);
+    
     // Sobreposição: novoInicio < existenteFim && novoFim > existenteInicio
     if (novoInicioTime < agendamentoFimTime && novoFimTime > agendamentoInicioTime) {
+      console.log(`❌ CONFLITO DETECTADO!`);
       return false;
     }
   }
