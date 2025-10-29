@@ -157,7 +157,6 @@ export async function POST(request: Request) {
     }
 
     // Criar dentro de transação serializável com advisory lock por profissional+dia
-    const dataAlvo = new Date(dataHora);
     const diaChave = `${dataAlvo.getUTCFullYear()}-${String(dataAlvo.getUTCMonth()+1).padStart(2,'0')}-${String(dataAlvo.getUTCDate()).padStart(2,'0')}`;
 
     // Retry simples para conflitos de escrita (P2034)
