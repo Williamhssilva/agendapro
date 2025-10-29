@@ -175,6 +175,9 @@ const tenant = await getTenantBySubdomain(); // Pega do subdomain
 ```
 - Componentes usam `var(--primary)`
 
+
+
+
 **Estimativa:** 30 minutos
 
 ---
