@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 
 export default function CadastroPage() {
   const router = useRouter();
@@ -32,24 +33,34 @@ export default function CadastroPage() {
 
       if (!response.ok) {
         const error = await response.json();
+        console.error("Erro na API de cadastro:", error);
         setError(error.message || "Erro ao criar conta");
         setLoading(false);
         return;
       }
 
-      // Fazer login automático e redirecionar para dashboard
-      const loginResult = await signIn("credentials", {
-        email: data.email,
-        password: data.senha,
-        redirect: false,
-      });
+      const result = await response.json();
+      console.log("Cadastro criado com sucesso:", result);
 
-      if (loginResult?.ok) {
-        router.push("/dashboard");
-        router.refresh();
-      } else {
-        // Se login falhar, redireciona para login manual
-        router.push("/login");
+      // Fazer login automático e redirecionar para dashboard
+      try {
+        const loginResult = await signIn("credentials", {
+          email: data.email,
+          password: data.senha,
+          redirect: false,
+        });
+
+        if (loginResult?.ok) {
+          router.push("/dashboard");
+          router.refresh();
+        } else {
+          console.error("Erro no login automático:", loginResult);
+          // Se login falhar, redireciona para login manual
+          router.push("/login?message=Conta criada com sucesso! Faça login para continuar.");
+        }
+      } catch (loginError) {
+        console.error("Erro no login automático:", loginError);
+        router.push("/login?message=Conta criada com sucesso! Faça login para continuar.");
       }
     } catch (err) {
       setError("Erro ao criar conta. Tente novamente.");
