@@ -15,28 +15,26 @@ export async function calcularHorariosDisponiveis({
   data: Date;
   estabelecimentoId: string;
 }) {
-  // 1. Buscar profissional e seus horários
-  const profissional = await prisma.profissional.findUnique({
-    where: { id: profissionalId },
-  });
+  // Buscar profissional, serviço e configuração em paralelo
+  const [profissional, servico, configuracao] = await Promise.all([
+    prisma.profissional.findUnique({
+      where: { id: profissionalId },
+    }),
+    prisma.servico.findUnique({
+      where: { id: servicoId },
+    }),
+    prisma.configuracao.findUnique({
+      where: { estabelecimentoId },
+    }),
+  ]);
 
   if (!profissional || !profissional.horariosTrabalho) {
     return [];
   }
 
-  // 2. Buscar serviço para saber a duração
-  const servico = await prisma.servico.findUnique({
-    where: { id: servicoId },
-  });
-
   if (!servico) {
     return [];
   }
-
-  // 3. Buscar configurações do estabelecimento
-  const configuracao = await prisma.configuracao.findUnique({
-    where: { estabelecimentoId },
-  });
 
   const intervaloMinutos = configuracao?.intervaloMinutos || 0;
   // Antecedência mínima: regra atual exige 2h no mínimo

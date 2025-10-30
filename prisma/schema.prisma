@@ -263,6 +263,8 @@ model Agendamento {
   @@index([dataHora])
   @@index([status])
   @@index([profissionalId, dataHora])
+  @@index([estabelecimentoId, dataHora])
+  @@index([estabelecimentoId, profissionalId, dataHora])
 }
 
 // ============================================

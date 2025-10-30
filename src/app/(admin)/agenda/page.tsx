@@ -42,34 +42,48 @@ export default async function AgendaPage({
     where.status = params.status;
   }
 
-  const agendamentos = await prisma.agendamento.findMany({
-    where,
-    include: {
-      cliente: true,
-      servico: true,
-      profissional: true,
-    },
-    orderBy: { dataHora: "asc" },
-  });
-
-  // Buscar agendamentos dos próximos 7 dias (para mostrar datas com agendamentos)
+  // Preparar range para próximos 7 dias
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const proximos7Dias = new Date(hoje);
   proximos7Dias.setDate(proximos7Dias.getDate() + 7);
 
-  const agendamentosProximos = await prisma.agendamento.findMany({
-    where: {
-      estabelecimentoId: session.user.estabelecimentoId,
-      dataHora: {
-        gte: hoje,
-        lte: proximos7Dias,
+  // Executar todas as consultas em paralelo
+  const [agendamentos, agendamentosProximos, profissionais] = await Promise.all([
+    // 1. Agendamentos do dia
+    prisma.agendamento.findMany({
+      where,
+      include: {
+        cliente: true,
+        servico: true,
+        profissional: true,
       },
-    },
-    select: {
-      dataHora: true,
-    },
-  });
+      orderBy: { dataHora: "asc" },
+    }),
+    
+    // 2. Agendamentos dos próximos 7 dias (para mini-calendário)
+    prisma.agendamento.findMany({
+      where: {
+        estabelecimentoId: session.user.estabelecimentoId,
+        dataHora: {
+          gte: hoje,
+          lte: proximos7Dias,
+        },
+      },
+      select: {
+        dataHora: true,
+      },
+    }),
+    
+    // 3. Profissionais para filtro
+    prisma.profissional.findMany({
+      where: {
+        estabelecimentoId: session.user.estabelecimentoId,
+        ativo: true,
+      },
+      orderBy: { nome: "asc" },
+    }),
+  ]);
 
   // Agrupar por data
   const contagemPorDia = agendamentosProximos.reduce((acc, agendamento) => {
@@ -81,15 +95,6 @@ export default async function AgendaPage({
   const proximosDias = Object.entries(contagemPorDia)
     .map(([data, total]) => ({ data, total }))
     .sort((a, b) => a.data.localeCompare(b.data));
-
-  // Buscar profissionais para o filtro
-  const profissionais = await prisma.profissional.findMany({
-    where: {
-      estabelecimentoId: session.user.estabelecimentoId,
-      ativo: true,
-    },
-    orderBy: { nome: "asc" },
-  });
 
   // Stats do dia
   const stats = {
