@@ -45,26 +45,33 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
       transition: 'all 0.2s ease',
     };
 
+    let style;
     switch (event.resource.status) {
       case 'pendente':
-        return { ...baseStyle, backgroundColor: '#f59e0b', borderLeft: '4px solid #d97706' }; // amarelo
+        style = { ...baseStyle, backgroundColor: '#f59e0b', borderLeft: '4px solid #d97706' }; // amarelo
+        break;
       case 'confirmado':
-        return { ...baseStyle, backgroundColor: '#10b981', borderLeft: '4px solid #059669' }; // verde
+        style = { ...baseStyle, backgroundColor: '#10b981', borderLeft: '4px solid #059669' }; // verde
+        break;
       case 'concluido':
-        return { ...baseStyle, backgroundColor: '#6366f1', borderLeft: '4px solid #4f46e5' }; // azul
+        style = { ...baseStyle, backgroundColor: '#6366f1', borderLeft: '4px solid #4f46e5' }; // azul
+        break;
       case 'cancelado':
-        return { ...baseStyle, backgroundColor: '#ef4444', borderLeft: '4px solid #dc2626' }; // vermelho
+        style = { ...baseStyle, backgroundColor: '#ef4444', borderLeft: '4px solid #dc2626' }; // vermelho
+        break;
       default:
-        return { ...baseStyle, backgroundColor: '#6b7280', borderLeft: '4px solid #4b5563' }; // cinza
+        style = { ...baseStyle, backgroundColor: '#6b7280', borderLeft: '4px solid #4b5563' }; // cinza
+        break;
     }
+    return { style };
   };
 
   // Função para renderizar o título do evento
   const EventComponent = ({ event }: { event: AgendamentoEvent }) => (
     <div className="text-xs">
-      <div className="font-semibold truncate text-white">{event.resource.cliente}</div>
-      <div className="text-xs opacity-90 truncate text-white/90">{event.resource.servico}</div>
-      <div className="text-xs opacity-75 truncate text-white/75">{event.resource.profissional}</div>
+      <div className="font-semibold truncate text-black">{event.resource.cliente}</div>
+      <div className="text-xs opacity-90 truncate text-black/90">{event.resource.servico}</div>
+      <div className="text-xs opacity-75 truncate text-black/75">{event.resource.profissional}</div>
     </div>
   );
 
