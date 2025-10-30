@@ -44,6 +44,48 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
   const [selectedSlot, setSelectedSlot] = useState<string>('');
+  const isPastSelectedDate = useMemo(() => {
+    if (!selectedDateStr) return false;
+    const selected = new Date(`${selectedDateStr}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return selected < today;
+  }, [selectedDateStr]);
+
+  // Carregar horários automaticamente ao abrir o modal e quando a data mudar
+  useEffect(() => {
+    const fetchSlots = async () => {
+      if (!selectedEvent?.resource.ids || !selectedDateStr) return;
+      // Se a data selecionada for no passado, não carregar horários
+      if (isPastSelectedDate) {
+        setSlots([]);
+        setSelectedSlot('');
+        return;
+      }
+      try {
+        setLoadingSlots(true);
+        setErrorMsg('');
+        setSuccessMsg('');
+        const url = new URL('/api/horarios-disponiveis', window.location.origin);
+        url.searchParams.set('profissionalId', selectedEvent.resource.ids.profissionalId);
+        url.searchParams.set('servicoId', selectedEvent.resource.ids.servicoId);
+        url.searchParams.set('data', selectedDateStr);
+        const res = await fetch(url.toString());
+        if (!res.ok) throw new Error('Falha ao buscar horários');
+        const data = await res.json();
+        const horarios: string[] = Array.isArray(data) ? data : (data.horarios || []);
+        setSlots(horarios);
+        setSelectedSlot(horarios[0] || '');
+      } catch (err) {
+        setSlots([]);
+        setSelectedSlot('');
+        setErrorMsg('Não foi possível carregar horários disponíveis.');
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+    fetchSlots();
+  }, [selectedEvent, selectedDateStr, isPastSelectedDate]);
 
   // Função para determinar a cor do evento baseado no status
   const getEventStyle = (event: AgendamentoEvent) => {
@@ -409,45 +451,12 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
                     </div>
 
                     <div>
-                      <div className="flex items-end justify-between">
-                        <label className="block text-sm font-medium text-gray-700">Horário</label>
-                        <button
-                          type="button"
-                          className="text-xs text-indigo-600 hover:underline disabled:text-gray-400"
-                          disabled={!selectedDateStr || loadingSlots}
-                          onClick={async () => {
-                            if (!selectedEvent.resource.ids) return;
-                            try {
-                              setLoadingSlots(true);
-                              setErrorMsg('');
-                              setSuccessMsg('');
-                              // Buscar horários disponíveis
-                              const url = new URL('/api/horarios-disponiveis', window.location.origin);
-                              url.searchParams.set('profissionalId', selectedEvent.resource.ids.profissionalId);
-                              url.searchParams.set('servicoId', selectedEvent.resource.ids.servicoId);
-                              url.searchParams.set('data', selectedDateStr);
-                          const res = await fetch(url.toString());
-                              if (!res.ok) throw new Error('Falha ao buscar horários');
-                          const data = await res.json();
-                          const horarios: string[] = Array.isArray(data) ? data : (data.horarios || []);
-                          setSlots(horarios);
-                          setSelectedSlot(horarios[0] || '');
-                            } catch (err: any) {
-                              setErrorMsg('Não foi possível carregar horários disponíveis.');
-                            } finally {
-                              setLoadingSlots(false);
-                            }
-                          }}
-                        >
-                          {loadingSlots ? 'Carregando…' : 'Carregar horários'}
-                        </button>
-                      </div>
-
+                      <label className="block text-sm font-medium text-gray-700">Horário</label>
                       <select
                         className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         value={selectedSlot}
                         onChange={(e) => setSelectedSlot(e.target.value)}
-                        disabled={!slots.length}
+                        disabled={!slots.length || isPastSelectedDate}
                       >
                         <option value="" disabled>
                           {loadingSlots ? 'Carregando…' : 'Selecione um horário'}
@@ -458,6 +467,15 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
                           </option>
                         ))}
                       </select>
+                      {isPastSelectedDate && (
+                        <p className="mt-1 text-xs text-gray-500">Data no passado. Selecione uma data futura para reagendar.</p>
+                      )}
+                      {!slots.length && !loadingSlots && (
+                        <p className="mt-1 text-xs text-gray-500">Nenhum horário disponível para a data selecionada.</p>
+                      )}
+                      {loadingSlots && (
+                        <p className="mt-1 text-xs text-gray-500">Carregando horários…</p>
+                      )}
                     </div>
                   </div>
                 </>
