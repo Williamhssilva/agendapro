@@ -70,45 +70,11 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
 
   return (
     <div className="bg-white rounded-lg shadow">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-900">Calendário de Agendamentos</h2>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setView(Views.MONTH)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                view === Views.MONTH
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-sm'
-              }`}
-            >
-              📅 Mês
-            </button>
-            <button
-              onClick={() => setView(Views.WEEK)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                view === Views.WEEK
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-sm'
-              }`}
-            >
-              📊 Semana
-            </button>
-            <button
-              onClick={() => setView(Views.DAY)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                view === Views.DAY
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-sm'
-              }`}
-            >
-              📋 Dia
-            </button>
-          </div>
-        </div>
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-900 text-center sm:text-left">Calendário de Agendamentos</h2>
       </div>
       
-      <div className="p-6">
+      <div className="p-2 sm:p-6">
         <style jsx global>{`
           .rbc-calendar {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -217,9 +183,130 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
             font-size: 11px;
             font-weight: 500;
           }
+
+          /* Mobile Responsive Styles */
+          @media (max-width: 768px) {
+            .rbc-calendar {
+              font-size: 12px;
+            }
+            
+            .rbc-header {
+              padding: 8px 4px;
+              font-size: 12px;
+              font-weight: 600;
+            }
+            
+            .rbc-date-cell {
+              padding: 4px 2px;
+              font-size: 11px;
+            }
+            
+            .rbc-toolbar {
+              padding: 12px;
+              margin-bottom: 16px;
+              flex-direction: column;
+              gap: 12px;
+            }
+            
+            .rbc-toolbar .rbc-btn-group {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 8px;
+              justify-content: center;
+            }
+            
+            .rbc-toolbar button {
+              padding: 6px 12px;
+              font-size: 12px;
+              min-width: 60px;
+            }
+            
+            .rbc-toolbar-label {
+              font-size: 16px;
+              text-align: center;
+              margin-bottom: 8px;
+            }
+            
+            .rbc-event {
+              font-size: 10px !important;
+              padding: 2px 4px !important;
+              border-radius: 4px !important;
+            }
+            
+            .rbc-time-slot {
+              font-size: 10px;
+            }
+            
+            .rbc-timeslot-group {
+              min-height: 40px;
+            }
+            
+            .rbc-time-view .rbc-time-content {
+              min-height: 400px;
+            }
+            
+            .rbc-month-view .rbc-date {
+              min-height: 60px;
+            }
+            
+            .rbc-month-view .rbc-date-cell {
+              padding: 2px;
+            }
+            
+            .rbc-month-view .rbc-off-range-bg {
+              min-height: 60px;
+            }
+          }
+
+          @media (max-width: 480px) {
+            .rbc-calendar {
+              font-size: 11px;
+            }
+            
+            .rbc-header {
+              padding: 6px 2px;
+              font-size: 11px;
+            }
+            
+            .rbc-date-cell {
+              padding: 2px 1px;
+              font-size: 10px;
+            }
+            
+            .rbc-toolbar {
+              padding: 8px;
+            }
+            
+            .rbc-toolbar button {
+              padding: 4px 8px;
+              font-size: 11px;
+              min-width: 50px;
+            }
+            
+            .rbc-toolbar-label {
+              font-size: 14px;
+            }
+            
+            .rbc-event {
+              font-size: 9px !important;
+              padding: 1px 2px !important;
+            }
+            
+            .rbc-month-view .rbc-date {
+              min-height: 50px;
+            }
+            
+            .rbc-month-view .rbc-off-range-bg {
+              min-height: 50px;
+            }
+            
+            .rbc-time-view .rbc-time-content {
+              min-height: 300px;
+            }
+          }
         `}</style>
         
-        <div style={{ height: '600px' }}>
+        <div className="h-96 sm:h-[600px]">
           <Calendar
             localizer={localizer}
             events={agendamentos}
