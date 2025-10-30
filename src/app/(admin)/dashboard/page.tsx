@@ -220,6 +220,11 @@ export default async function DashboardPage() {
                 servico: agendamento.servico.nome,
                 profissional: agendamento.profissional.nome,
                 status: agendamento.status,
+                ids: {
+                  agendamentoId: agendamento.id,
+                  profissionalId: agendamento.profissionalId,
+                  servicoId: agendamento.servicoId,
+                },
               },
             }))}
           />

@@ -3,7 +3,7 @@
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 // Configurar moment para português
 import 'moment/locale/pt-br';
@@ -21,6 +21,11 @@ interface AgendamentoEvent {
     servico: string;
     profissional: string;
     status: string;
+    ids?: {
+      agendamentoId: string;
+      profissionalId: string;
+      servicoId: string;
+    };
   };
 }
 
@@ -31,6 +36,14 @@ interface AgendaCalendarProps {
 export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
   const [view, setView] = useState<View>(Views.MONTH);
   const [date, setDate] = useState(new Date());
+  const [selectedEvent, setSelectedEvent] = useState<AgendamentoEvent | null>(null);
+  const [selectedDateStr, setSelectedDateStr] = useState<string>('');
+  const [slots, setSlots] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string>('');
+  const [successMsg, setSuccessMsg] = useState<string>('');
+  const [selectedSlot, setSelectedSlot] = useState<string>('');
 
   // Função para determinar a cor do evento baseado no status
   const getEventStyle = (event: AgendamentoEvent) => {
@@ -327,6 +340,16 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
             components={{
               event: EventComponent,
             }}
+            onSelectEvent={(event: AgendamentoEvent) => {
+              setErrorMsg('');
+              setSuccessMsg('');
+              setSelectedEvent(event);
+              const d = event.start instanceof Date ? event.start : new Date(event.start);
+              const yyyy = d.getFullYear();
+              const mm = String(d.getMonth() + 1).padStart(2, '0');
+              const dd = String(d.getDate()).padStart(2, '0');
+              setSelectedDateStr(`${yyyy}-${mm}-${dd}`);
+            }}
             messages={{
               next: 'Próximo',
               previous: 'Anterior',
@@ -349,6 +372,165 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
           />
         </div>
       </div>
+
+      {selectedEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-lg">
+            <div className="border-b border-gray-200 px-4 py-3">
+              <h3 className="text-base font-semibold text-gray-900">Reagendar</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                {selectedEvent.resource.cliente} — {selectedEvent.resource.servico} — {selectedEvent.resource.profissional}
+              </p>
+            </div>
+
+            <div className="px-4 py-4">
+              {!selectedEvent.resource.ids ? (
+                <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                  Este evento não possui metadados para reagendamento. Atualize a fonte dos eventos para incluir IDs.
+                </div>
+              ) : (
+                <>
+                  {errorMsg && (
+                    <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{errorMsg}</div>
+                  )}
+                  {successMsg && (
+                    <div className="mb-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{successMsg}</div>
+                  )}
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Data</label>
+                      <input
+                        type="date"
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        value={selectedDateStr}
+                        onChange={(e) => setSelectedDateStr(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-end justify-between">
+                        <label className="block text-sm font-medium text-gray-700">Horário</label>
+                        <button
+                          type="button"
+                          className="text-xs text-indigo-600 hover:underline disabled:text-gray-400"
+                          disabled={!selectedDateStr || loadingSlots}
+                          onClick={async () => {
+                            if (!selectedEvent.resource.ids) return;
+                            try {
+                              setLoadingSlots(true);
+                              setErrorMsg('');
+                              setSuccessMsg('');
+                              // Buscar horários disponíveis
+                              const url = new URL('/api/horarios-disponiveis', window.location.origin);
+                              url.searchParams.set('profissionalId', selectedEvent.resource.ids.profissionalId);
+                              url.searchParams.set('servicoId', selectedEvent.resource.ids.servicoId);
+                              url.searchParams.set('data', selectedDateStr);
+                          const res = await fetch(url.toString());
+                              if (!res.ok) throw new Error('Falha ao buscar horários');
+                          const data = await res.json();
+                          const horarios: string[] = Array.isArray(data) ? data : (data.horarios || []);
+                          setSlots(horarios);
+                          setSelectedSlot(horarios[0] || '');
+                            } catch (err: any) {
+                              setErrorMsg('Não foi possível carregar horários disponíveis.');
+                            } finally {
+                              setLoadingSlots(false);
+                            }
+                          }}
+                        >
+                          {loadingSlots ? 'Carregando…' : 'Carregar horários'}
+                        </button>
+                      </div>
+
+                      <select
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        value={selectedSlot}
+                        onChange={(e) => setSelectedSlot(e.target.value)}
+                        disabled={!slots.length}
+                      >
+                        <option value="" disabled>
+                          {loadingSlots ? 'Carregando…' : 'Selecione um horário'}
+                        </option>
+                        {slots.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-4 py-3">
+              <button
+                type="button"
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                onClick={() => {
+                  setSelectedEvent(null);
+                  setSlots([]);
+                  setErrorMsg('');
+                  setSuccessMsg('');
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                disabled={!selectedEvent?.resource.ids || !selectedDateStr || !selectedSlot || saving}
+                onClick={async () => {
+                  if (!selectedEvent?.resource.ids) return;
+                  try {
+                    setSaving(true);
+                    setErrorMsg('');
+                    setSuccessMsg('');
+                    const horario = selectedSlot;
+                    if (!horario) {
+                      setErrorMsg('Selecione um horário.');
+                      setSaving(false);
+                      return;
+                    }
+                    const iso = new Date(`${selectedDateStr}T${horario}:00`);
+                    const res = await fetch(`/api/agendamentos/${selectedEvent.resource.ids.agendamentoId}/reagendar`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        dataHora: iso.toISOString(),
+                        profissionalId: selectedEvent.resource.ids.profissionalId,
+                      }),
+                    });
+                    if (res.status === 409) {
+                      setErrorMsg('Este horário está indisponível para o reagendamento.');
+                      setSaving(false);
+                      return;
+                    }
+                    if (!res.ok) throw new Error('Falha ao reagendar');
+                    setSuccessMsg('Agendamento reagendado com sucesso.');
+                    // Atualização simples: fechar modal após breve delay
+                    setTimeout(() => {
+                      setSelectedEvent(null);
+                      setSlots([]);
+                      setErrorMsg('');
+                      setSuccessMsg('');
+                      // Opcional: refresh da página
+                      if (typeof window !== 'undefined') window.location.reload();
+                    }, 800);
+                  } catch (err: any) {
+                    setErrorMsg('Não foi possível reagendar.');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                {saving ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
