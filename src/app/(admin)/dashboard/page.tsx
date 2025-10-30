@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { requireTenant } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
+import AgendaCalendar from "@/components/calendar/AgendaCalendar";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -38,7 +39,7 @@ export default async function DashboardPage() {
       }),
     ]);
 
-  // Buscar agendamentos de hoje
+  // Buscar agendamentos de hoje (para a lista)
   const agendamentos = await prisma.agendamento.findMany({
     where: {
       estabelecimentoId: tenant.id,
@@ -51,6 +52,28 @@ export default async function DashboardPage() {
     },
     orderBy: { dataHora: "asc" },
     take: 10,
+  });
+
+  // Buscar agendamentos para o calendário (próximos 30 dias)
+  const dataInicioCalendario = new Date(hoje);
+  dataInicioCalendario.setDate(dataInicioCalendario.getDate() - 7); // 7 dias atrás
+  const dataFimCalendario = new Date(hoje);
+  dataFimCalendario.setDate(dataFimCalendario.getDate() + 30); // 30 dias à frente
+
+  const agendamentosCalendario = await prisma.agendamento.findMany({
+    where: {
+      estabelecimentoId: tenant.id,
+      dataHora: {
+        gte: dataInicioCalendario,
+        lte: dataFimCalendario,
+      },
+    },
+    include: {
+      cliente: true,
+      servico: true,
+      profissional: true,
+    },
+    orderBy: { dataHora: "asc" },
   });
 
   return (
@@ -182,6 +205,24 @@ export default async function DashboardPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Calendário de Agendamentos */}
+        <div className="mt-8">
+          <AgendaCalendar 
+            agendamentos={agendamentosCalendario.map(agendamento => ({
+              id: agendamento.id,
+              title: `${agendamento.cliente.nome} - ${agendamento.servico.nome}`,
+              start: agendamento.dataHora,
+              end: new Date(agendamento.dataHora.getTime() + agendamento.duracao * 60000),
+              resource: {
+                cliente: agendamento.cliente.nome,
+                servico: agendamento.servico.nome,
+                profissional: agendamento.profissional.nome,
+                status: agendamento.status,
+              },
+            }))}
+          />
         </div>
       </div>
     </div>
