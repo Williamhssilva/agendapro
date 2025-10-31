@@ -419,10 +419,27 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-lg bg-white shadow-lg">
             <div className="border-b border-gray-200 px-4 py-3">
-              <h3 className="text-base font-semibold text-gray-900">Reagendar</h3>
+              <h3 className="text-base font-semibold text-gray-900">Agendamento</h3>
               <p className="mt-1 text-sm text-gray-600">
                 {selectedEvent.resource.cliente} — {selectedEvent.resource.servico} — {selectedEvent.resource.profissional}
               </p>
+              <div className="mt-2 flex items-center gap-2 text-xs">
+                <span className="text-gray-500">Status:</span>
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 font-medium"
+                  style={{
+                    backgroundColor:
+                      selectedEvent.resource.status === 'pendente' ? '#FEF3C7' :
+                      selectedEvent.resource.status === 'confirmado' ? '#D1FAE5' :
+                      selectedEvent.resource.status === 'cancelado' ? '#FEE2E2' : '#E0E7FF',
+                    color:
+                      selectedEvent.resource.status === 'pendente' ? '#92400E' :
+                      selectedEvent.resource.status === 'confirmado' ? '#065F46' :
+                      selectedEvent.resource.status === 'cancelado' ? '#991B1B' : '#3730A3',
+                  }}
+                >
+                  {selectedEvent.resource.status}
+                </span>
+              </div>
             </div>
 
             <div className="px-4 py-4">
@@ -482,7 +499,59 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  disabled={!selectedEvent?.resource.ids || selectedEvent.resource.status === 'confirmado'}
+                  onClick={async () => {
+                    if (!selectedEvent?.resource.ids) return;
+                    try {
+                      const res = await fetch(`/api/agendamentos/${selectedEvent.resource.ids.agendamentoId}/status`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'confirmado' }),
+                      });
+                      if (!res.ok) throw new Error('Falha ao confirmar');
+                      setSuccessMsg('Agendamento confirmado.');
+                      setTimeout(() => {
+                        if (typeof window !== 'undefined') window.location.reload();
+                      }, 500);
+                    } catch {
+                      setErrorMsg('Não foi possível confirmar.');
+                    }
+                  }}
+                >
+                  Confirmar
+                </button>
+
+                <button
+                  type="button"
+                  className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                  disabled={!selectedEvent?.resource.ids || selectedEvent.resource.status === 'cancelado'}
+                  onClick={async () => {
+                    if (!selectedEvent?.resource.ids) return;
+                    try {
+                      const res = await fetch(`/api/agendamentos/${selectedEvent.resource.ids.agendamentoId}/status`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'cancelado' }),
+                      });
+                      if (!res.ok) throw new Error('Falha ao cancelar');
+                      setSuccessMsg('Agendamento cancelado.');
+                      setTimeout(() => {
+                        if (typeof window !== 'undefined') window.location.reload();
+                      }, 500);
+                    } catch {
+                      setErrorMsg('Não foi possível cancelar.');
+                    }
+                  }}
+                >
+                  Cancelamento
+                </button>
+              </div>
+
               <button
                 type="button"
                 className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -543,7 +612,7 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
                   }
                 }}
               >
-                {saving ? 'Salvando…' : 'Salvar'}
+                {saving ? 'Salvando…' : 'Reagendar'}
               </button>
             </div>
           </div>

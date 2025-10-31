@@ -19,8 +19,13 @@ export default async function AgendaPage({
 
   const params = await searchParams;
 
-  // Data padrão: hoje (formato YYYY-MM-DD)
-  const dataStr = params.data || new Date().toISOString().split("T")[0];
+  // Data padrão: hoje em America/Sao_Paulo (formato YYYY-MM-DD)
+  const now = new Date();
+  const zonedNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const yyyy = zonedNow.getFullYear();
+  const mm = String(zonedNow.getMonth() + 1).padStart(2, '0');
+  const dd = String(zonedNow.getDate()).padStart(2, '0');
+  const dataStr = params.data || `${yyyy}-${mm}-${dd}`;
   
   // Criar range do dia em UTC
   const dataFiltro = new Date(dataStr + "T00:00:00.000Z");
@@ -143,7 +148,7 @@ export default async function AgendaPage({
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Agenda</h1>
               <p className="text-sm text-gray-600">
-                {new Date(dataStr).toLocaleDateString("pt-BR", { 
+                {new Date(dataStr + "T12:00:00").toLocaleDateString("pt-BR", { 
                   weekday: "long", 
                   day: "2-digit", 
                   month: "long",
