@@ -53,8 +53,8 @@ export default async function AgendaPage({
   const proximos7Dias = new Date(hoje);
   proximos7Dias.setDate(proximos7Dias.getDate() + 7);
 
-  // Executar todas as consultas em paralelo
-  const [agendamentos, agendamentosProximos, profissionais] = await Promise.all([
+  // Executar todas as consultas em paralelo com tolerância a falhas
+  const results = await Promise.allSettled([
     // 1. Agendamentos do dia
     prisma.agendamento.findMany({
       where,
@@ -89,6 +89,11 @@ export default async function AgendaPage({
       orderBy: { nome: "asc" },
     }),
   ]);
+
+  const agendamentos = results[0].status === "fulfilled" ? (results[0].value as any[]) : [];
+  const agendamentosProximos = results[1].status === "fulfilled" ? (results[1].value as any[]) : [];
+  const profissionais = results[2].status === "fulfilled" ? (results[2].value as any[]) : [];
+  const hadError = results.some(r => r.status === "rejected");
 
   // Agrupar por data
   const contagemPorDia = agendamentosProximos.reduce((acc, agendamento) => {
@@ -171,6 +176,11 @@ export default async function AgendaPage({
 
       {/* Content */}
       <div className="px-4 sm:px-6 lg:px-8 py-8">
+        {hadError && (
+          <div className="mb-4 rounded border border-amber-300 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
+            Alguns dados podem estar indisponíveis no momento. Recarregue a página em alguns segundos.
+          </div>
+        )}
         {/* Filtro de Status */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="flex items-center gap-3 text-sm">

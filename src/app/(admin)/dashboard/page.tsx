@@ -20,39 +20,51 @@ export default async function DashboardPage() {
   const amanha = new Date(hoje);
   amanha.setDate(amanha.getDate() + 1);
 
-  const [agendamentosHoje, totalServicos, totalProfissionais, totalClientes] =
-    await Promise.all([
-      prisma.agendamento.count({
-        where: {
-          estabelecimentoId: tenant.id,
-          dataHora: { gte: hoje, lt: amanha },
-        },
-      }),
-      prisma.servico.count({
-        where: { estabelecimentoId: tenant.id, ativo: true },
-      }),
-      prisma.profissional.count({
-        where: { estabelecimentoId: tenant.id, ativo: true },
-      }),
-      prisma.cliente.count({
-        where: { estabelecimentoId: tenant.id },
-      }),
-    ]);
+  const statsResults = await Promise.allSettled([
+    prisma.agendamento.count({
+      where: {
+        estabelecimentoId: tenant.id,
+        dataHora: { gte: hoje, lt: amanha },
+      },
+    }),
+    prisma.servico.count({
+      where: { estabelecimentoId: tenant.id, ativo: true },
+    }),
+    prisma.profissional.count({
+      where: { estabelecimentoId: tenant.id, ativo: true },
+    }),
+    prisma.cliente.count({
+      where: { estabelecimentoId: tenant.id },
+    }),
+  ]);
+
+  const agendamentosHoje = statsResults[0].status === "fulfilled" ? statsResults[0].value as number : 0;
+  const totalServicos = statsResults[1].status === "fulfilled" ? statsResults[1].value as number : 0;
+  const totalProfissionais = statsResults[2].status === "fulfilled" ? statsResults[2].value as number : 0;
+  const totalClientes = statsResults[3].status === "fulfilled" ? statsResults[3].value as number : 0;
+  const statsHadError = statsResults.some(r => r.status === "rejected");
 
   // Buscar agendamentos de hoje (para a lista)
-  const agendamentos = await prisma.agendamento.findMany({
-    where: {
-      estabelecimentoId: tenant.id,
-      dataHora: { gte: hoje, lt: amanha },
-    },
-    include: {
-      cliente: true,
-      servico: true,
-      profissional: true,
-    },
-    orderBy: { dataHora: "asc" },
-    take: 10,
-  });
+  let agendamentos: any[] = [];
+  let listHadError = false;
+  try {
+    agendamentos = await prisma.agendamento.findMany({
+      where: {
+        estabelecimentoId: tenant.id,
+        dataHora: { gte: hoje, lt: amanha },
+      },
+      include: {
+        cliente: true,
+        servico: true,
+        profissional: true,
+      },
+      orderBy: { dataHora: "asc" },
+      take: 10,
+    });
+  } catch (error) {
+    listHadError = true;
+    console.error("Dashboard: erro ao buscar agendamentos do dia", error);
+  }
 
   // Buscar agendamentos para o calendário (próximos 30 dias)
   const dataInicioCalendario = new Date(hoje);
@@ -60,21 +72,28 @@ export default async function DashboardPage() {
   const dataFimCalendario = new Date(hoje);
   dataFimCalendario.setDate(dataFimCalendario.getDate() + 30); // 30 dias à frente
 
-  const agendamentosCalendario = await prisma.agendamento.findMany({
-    where: {
-      estabelecimentoId: tenant.id,
-      dataHora: {
-        gte: dataInicioCalendario,
-        lte: dataFimCalendario,
+  let agendamentosCalendario: any[] = [];
+  let calendarHadError = false;
+  try {
+    agendamentosCalendario = await prisma.agendamento.findMany({
+      where: {
+        estabelecimentoId: tenant.id,
+        dataHora: {
+          gte: dataInicioCalendario,
+          lte: dataFimCalendario,
+        },
       },
-    },
-    include: {
-      cliente: true,
-      servico: true,
-      profissional: true,
-    },
-    orderBy: { dataHora: "asc" },
-  });
+      include: {
+        cliente: true,
+        servico: true,
+        profissional: true,
+      },
+      orderBy: { dataHora: "asc" },
+    });
+  } catch (error) {
+    calendarHadError = true;
+    console.error("Dashboard: erro ao buscar dados do calendário", error);
+  }
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -88,6 +107,11 @@ export default async function DashboardPage() {
 
       {/* Content */}
       <div className="px-4 sm:px-6 lg:px-8 py-8">
+        {(statsHadError || listHadError || calendarHadError) && (
+          <div className="mb-4 rounded border border-amber-300 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
+            Algumas informações podem estar indisponíveis agora. Tente recarregar em instantes.
+          </div>
+        )}
         {/* Stats */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
           <div className="bg-white overflow-hidden shadow rounded-lg">
