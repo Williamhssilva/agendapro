@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { verificarDisponibilidade } from "@/lib/horarios";
+import { isDbUnavailable } from "@/lib/errors";
 import { headers } from "next/headers";
 
 // GET - Listar agendamentos
@@ -52,10 +53,13 @@ export async function GET(request: Request) {
     return NextResponse.json(agendamentos);
   } catch (error) {
     console.error("Erro ao buscar agendamentos:", error);
-    return NextResponse.json(
-      { error: "Erro ao buscar agendamentos" },
-      { status: 500 }
-    );
+    if (isDbUnavailable(error)) {
+      return NextResponse.json(
+        { error: "Serviço temporariamente indisponível. Tente novamente em instantes." },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ error: "Erro ao buscar agendamentos" }, { status: 500 });
   }
 }
 
@@ -272,6 +276,12 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Conflito de concorrência. O horário acabou de ser ocupado. Tente outro." },
         { status: 409 }
+      );
+    }
+    if (isDbUnavailable(error)) {
+      return NextResponse.json(
+        { error: "Serviço temporariamente indisponível. Tente novamente em instantes." },
+        { status: 503 }
       );
     }
     // Prisma/Postgres errors mapeáveis (opcionalmente tratar P2002, etc.)

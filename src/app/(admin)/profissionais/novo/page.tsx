@@ -15,12 +15,37 @@ export default function NovoProfissionalPage() {
     setError("");
 
     const formData = new FormData(e.currentTarget);
+    
+    // Construir horários de trabalho
+    const dias = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"];
+    const horarios: Record<string, any> = {};
+    
+    for (const dia of dias) {
+      const aberto = formData.get(`${dia}_aberto`) === "on";
+      if (aberto) {
+        const inicio = (formData.get(`${dia}_inicio`) as string) || "09:00";
+        const fim = (formData.get(`${dia}_fim`) as string) || "18:00";
+        const almocoInicio = (formData.get(`${dia}_almocoInicio`) as string) || null;
+        const almocoFim = (formData.get(`${dia}_almocoFim`) as string) || null;
+        
+        horarios[dia] = {
+          aberto: true,
+          inicio,
+          fim,
+          ...(almocoInicio && almocoFim ? { almocoInicio, almocoFim } : {}),
+        };
+      } else {
+        horarios[dia] = { aberto: false };
+      }
+    }
+    
     const data = {
       nome: formData.get("nome"),
       email: formData.get("email") || "",
       telefone: formData.get("telefone"),
       especialidade: formData.get("especialidade"),
       ativo: formData.get("ativo") === "on",
+      horariosTrabalho: JSON.stringify(horarios),
     };
 
     try {
@@ -140,17 +165,97 @@ export default function NovoProfissionalPage() {
                 </label>
               </div>
 
-              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
-                <div className="flex">
-                  <svg className="w-5 h-5 text-blue-500 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div>
-                    <p className="font-medium text-blue-800 mb-1">💡 Dica</p>
-                    <p className="text-sm text-blue-700">
-                      Você poderá configurar os horários de trabalho de cada profissional depois de criar.
-                    </p>
-                  </div>
+              {/* Seção de Horários de Trabalho e Almoço */}
+              <div className="pt-6 border-t">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Horários de Trabalho e Almoço</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Configure os horários de trabalho e intervalo de almoço para cada dia da semana.
+                  Os horários serão cruzados com os horários do estabelecimento (configurações gerais).
+                  Deixe o horário de almoço em branco se o profissional não tiver intervalo.
+                </p>
+                
+                <div className="space-y-4">
+                  {(() => {
+                    const dias = [
+                      { k: "segunda", label: "Segunda-feira" },
+                      { k: "terca", label: "Terça-feira" },
+                      { k: "quarta", label: "Quarta-feira" },
+                      { k: "quinta", label: "Quinta-feira" },
+                      { k: "sexta", label: "Sexta-feira" },
+                      { k: "sabado", label: "Sábado" },
+                      { k: "domingo", label: "Domingo" },
+                    ];
+                    // Valores padrão para novo profissional
+                    const defaults: Record<string, any> = {
+                      segunda: { aberto: true, inicio: "09:00", fim: "18:00" },
+                      terca: { aberto: true, inicio: "09:00", fim: "18:00" },
+                      quarta: { aberto: true, inicio: "09:00", fim: "18:00" },
+                      quinta: { aberto: true, inicio: "09:00", fim: "18:00" },
+                      sexta: { aberto: true, inicio: "09:00", fim: "18:00" },
+                      sabado: { aberto: true, inicio: "09:00", fim: "14:00" },
+                      domingo: { aberto: false },
+                    };
+                    return dias.map(({ k, label }) => {
+                      const d = defaults[k];
+                      return (
+                        <div key={k} className="border rounded-lg p-4 space-y-3">
+                          <div className="flex items-center gap-2 mb-3">
+                            <input
+                              id={`${k}_aberto`}
+                              name={`${k}_aberto`}
+                              type="checkbox"
+                              defaultChecked={!!d.aberto}
+                              className="h-4 w-4"
+                            />
+                            <label htmlFor={`${k}_aberto`} className="text-sm font-medium text-gray-700">
+                              {label}
+                            </label>
+                          </div>
+                          
+                          {d.aberto && (
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 ml-6">
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Início</label>
+                                <input
+                                  name={`${k}_inicio`}
+                                  type="time"
+                                  defaultValue={d.inicio || "09:00"}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Fim</label>
+                                <input
+                                  name={`${k}_fim`}
+                                  type="time"
+                                  defaultValue={d.fim || "18:00"}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Almoço Início (opcional)</label>
+                                <input
+                                  name={`${k}_almocoInicio`}
+                                  type="time"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                  placeholder="12:00"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Almoço Fim (opcional)</label>
+                                <input
+                                  name={`${k}_almocoFim`}
+                                  type="time"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                  placeholder="13:00"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
+import { isDbUnavailable } from "@/lib/errors";
 
 // GET - Listar serviços públicos (sem auth)
 export async function GET() {
@@ -34,13 +35,20 @@ export async function GET() {
       ],
     });
 
-    return NextResponse.json(servicos);
+    return NextResponse.json(servicos, {
+      headers: {
+        "Cache-Control": "s-maxage=60, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("Erro ao buscar serviços:", error);
-    return NextResponse.json(
-      { error: "Erro ao buscar serviços" },
-      { status: 500 }
-    );
+    if (isDbUnavailable(error)) {
+      return NextResponse.json(
+        { error: "Serviço temporariamente indisponível. Tente novamente em instantes." },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ error: "Erro ao buscar serviços" }, { status: 500 });
   }
 }
 

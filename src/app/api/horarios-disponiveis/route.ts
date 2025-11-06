@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { calcularHorariosDisponiveis } from "@/lib/horarios";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { isDbUnavailable } from "@/lib/errors";
 
 // GET - Buscar horários disponíveis (funciona com e sem auth)
 export async function GET(request: Request) {
@@ -50,13 +51,20 @@ export async function GET(request: Request) {
       estabelecimentoId,
     });
 
-    return NextResponse.json({ horarios });
+    return NextResponse.json({ horarios }, {
+      headers: {
+        "Cache-Control": "s-maxage=60, stale-while-revalidate=120",
+      },
+    });
   } catch (error) {
     console.error("Erro ao calcular horários:", error);
-    return NextResponse.json(
-      { error: "Erro ao calcular horários disponíveis" },
-      { status: 500 }
-    );
+    if (isDbUnavailable(error)) {
+      return NextResponse.json(
+        { error: "Serviço temporariamente indisponível. Tente novamente em instantes." },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ error: "Erro ao calcular horários disponíveis" }, { status: 500 });
   }
 }
 

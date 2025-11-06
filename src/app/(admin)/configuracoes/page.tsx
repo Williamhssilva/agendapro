@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import LogoUploader from "./LogoUploader";
 
 async function updateHorarios(formData: FormData) {
@@ -24,16 +25,22 @@ async function updateHorarios(formData: FormData) {
 
   const horarios: Record<string, any> = {};
   for (const dia of dias) {
-    const aberto = formData.get(`${dia}_aberto`) ? true : false;
-    const inicio = (formData.get(`${dia}_inicio`) as string) || "";
-    const fim = (formData.get(`${dia}_fim`) as string) || "";
-    horarios[dia] = aberto ? { aberto, inicio, fim } : { aberto: false };
+    // Checkbox retorna "on" quando marcado, null quando desmarcado
+    const checkboxValue = formData.get(`${dia}_aberto`);
+    const aberto = checkboxValue === "on" || checkboxValue === "true";
+    const inicio = (formData.get(`${dia}_inicio`) as string) || "09:00";
+    const fim = (formData.get(`${dia}_fim`) as string) || "18:00";
+    
+    horarios[dia] = aberto ? { aberto: true, inicio, fim } : { aberto: false };
   }
 
   await prisma.configuracao.update({
     where: { estabelecimentoId },
     data: { horariosFuncionamento: JSON.stringify(horarios) },
   });
+
+  // Revalidar a página para mostrar os novos horários
+  revalidatePath("/configuracoes");
 }
 
 async function updateEstabelecimento(formData: FormData) {
@@ -61,6 +68,9 @@ async function updateEstabelecimento(formData: FormData) {
   }
 
   await prisma.estabelecimento.update({ where: { id: estabelecimentoId }, data: updateData });
+  
+  // Revalidar a página para mostrar as alterações
+  revalidatePath("/configuracoes");
 }
 
 export default async function ConfiguracoesPage() {

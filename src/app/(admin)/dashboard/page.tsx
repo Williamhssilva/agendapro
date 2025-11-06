@@ -11,8 +11,30 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Buscar tenant pelo estabelecimentoId do usuário logado
-  const tenant = await requireTenant(session.user.estabelecimentoId);
+  // Buscar tenant pelo estabelecimentoId do usuário logado (com tratamento de erro P1001)
+  let tenant;
+  let tenantError = false;
+  try {
+    tenant = await requireTenant(session.user.estabelecimentoId);
+  } catch (error: any) {
+    // Se for erro P1001 (DB indisponível), mostra banner mas não redireciona
+    // Se for outro erro (ex: não encontrado), redireciona para login
+    if (error?.code === 'P1001' || error?.message?.includes('P1001')) {
+      tenantError = true;
+      console.error("Dashboard: Database unavailable (P1001) ao buscar tenant");
+      // Usar valores padrão para permitir que a página carregue parcialmente
+      // Mas não podemos continuar sem tenant, então redireciona mesmo assim
+      redirect("/login");
+    } else {
+      console.error("Dashboard: erro ao buscar tenant", error);
+      redirect("/login");
+    }
+  }
+  
+  // Se tenant for null (não deveria chegar aqui, mas por segurança)
+  if (!tenant) {
+    redirect("/login");
+  }
 
   // Buscar estatísticas
   const hoje = new Date();

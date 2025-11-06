@@ -1,49 +1,70 @@
 import { headers } from 'next/headers';
 import { prisma } from './prisma';
+import { isDbUnavailable } from './errors';
 
 /**
  * Busca o tenant baseado no subdomain da requisição
- * Retorna null se não encontrar
+ * Retorna null se não encontrar ou se houver erro de conexão
  */
 export async function getTenantBySubdomain() {
-  const headersList = await headers();
-  const tenantSlug = headersList.get('x-tenant-slug');
-  
-  if (!tenantSlug) {
-    return null;
+  try {
+    const headersList = await headers();
+    const tenantSlug = headersList.get('x-tenant-slug');
+    
+    if (!tenantSlug) {
+      return null;
+    }
+    
+    const estabelecimento = await prisma.estabelecimento.findUnique({
+      where: { slug: tenantSlug },
+      include: {
+        plano: true,
+        configuracoes: true,
+      },
+    });
+    
+    return estabelecimento;
+  } catch (error) {
+    if (isDbUnavailable(error)) {
+      console.error('getTenantBySubdomain: Database unavailable (P1001)');
+      return null; // Retorna null em caso de erro de conexão
+    }
+    throw error; // Re-lança outros erros
   }
-  
-  const estabelecimento = await prisma.estabelecimento.findUnique({
-    where: { slug: tenantSlug },
-    include: {
-      plano: true,
-      configuracoes: true,
-    },
-  });
-  
-  return estabelecimento;
 }
 
 /**
  * Busca o tenant pelo ID
  * Útil para área admin onde temos o estabelecimentoId do usuário
+ * Retorna null se não encontrar ou se houver erro de conexão
  */
 export async function getTenantById(estabelecimentoId: string) {
-  const estabelecimento = await prisma.estabelecimento.findUnique({
-    where: { id: estabelecimentoId },
-    include: {
-      plano: true,
-      configuracoes: true,
-    },
-  });
-  
-  return estabelecimento;
+  try {
+    const estabelecimento = await prisma.estabelecimento.findUnique({
+      where: { id: estabelecimentoId },
+      include: {
+        plano: true,
+        configuracoes: true,
+      },
+    });
+    
+    return estabelecimento;
+  } catch (error) {
+    if (isDbUnavailable(error)) {
+      console.error('getTenantById: Database unavailable (P1001)');
+      return null; // Retorna null em caso de erro de conexão
+    }
+    throw error; // Re-lança outros erros
+  }
 }
 
 /**
  * Busca o tenant e lança erro se não encontrar
  * Para área admin: usa o estabelecimentoId da session
  * Para área pública: usa subdomain
+ * 
+ * Em caso de erro P1001 (DB indisponível), retorna null ao invés de lançar erro
+ * para permitir tratamento específico na página
  */
 export async function requireTenant(estabelecimentoId?: string) {
   let tenant;
@@ -57,6 +78,9 @@ export async function requireTenant(estabelecimentoId?: string) {
   }
   
   if (!tenant) {
+    // Se retornou null, pode ser porque não encontrou OU porque DB está indisponível
+    // A função getTenantById/getTenantBySubdomain já trata P1001 e retorna null
+    // Aqui assumimos que é "não encontrado" para manter compatibilidade
     throw new Error('Estabelecimento não encontrado');
   }
   

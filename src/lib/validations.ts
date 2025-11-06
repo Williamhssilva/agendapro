@@ -21,6 +21,7 @@ export const ProfissionalSchema = z.object({
   telefone: z.string().optional(),
   especialidade: z.string().optional(),
   ativo: z.boolean().default(true),
+  horariosTrabalho: z.string().optional(), // JSON string com horários
 });
 
 export type ProfissionalFormData = z.infer<typeof ProfissionalSchema>;

@@ -38,12 +38,37 @@ export default function EditarProfissionalPage({ params }: { params: Promise<{ i
     setError("");
 
     const formData = new FormData(e.currentTarget);
+    
+    // Construir horários de trabalho
+    const dias = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"];
+    const horarios: Record<string, any> = {};
+    
+    for (const dia of dias) {
+      const aberto = formData.get(`${dia}_aberto`) === "on";
+      if (aberto) {
+        const inicio = (formData.get(`${dia}_inicio`) as string) || "09:00";
+        const fim = (formData.get(`${dia}_fim`) as string) || "18:00";
+        const almocoInicio = (formData.get(`${dia}_almocoInicio`) as string) || null;
+        const almocoFim = (formData.get(`${dia}_almocoFim`) as string) || null;
+        
+        horarios[dia] = {
+          aberto: true,
+          inicio,
+          fim,
+          ...(almocoInicio && almocoFim ? { almocoInicio, almocoFim } : {}),
+        };
+      } else {
+        horarios[dia] = { aberto: false };
+      }
+    }
+    
     const data = {
       nome: formData.get("nome"),
       email: formData.get("email") || "",
       telefone: formData.get("telefone"),
       especialidade: formData.get("especialidade"),
       ativo: formData.get("ativo") === "on",
+      horariosTrabalho: JSON.stringify(horarios),
     };
 
     try {
@@ -213,6 +238,97 @@ export default function EditarProfissionalPage({ params }: { params: Promise<{ i
                 <label htmlFor="ativo" className="ml-2 text-sm text-gray-700">
                   Profissional ativo (disponível para agendamentos)
                 </label>
+              </div>
+
+              {/* Seção de Horários de Trabalho e Almoço */}
+              <div className="pt-6 border-t">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Horários de Trabalho e Almoço</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Configure os horários de trabalho e intervalo de almoço para cada dia da semana.
+                  Deixe o horário de almoço em branco se o profissional não tiver intervalo.
+                </p>
+                
+                <div className="space-y-4">
+                  {(() => {
+                    const dias = [
+                      { k: "segunda", label: "Segunda-feira" },
+                      { k: "terca", label: "Terça-feira" },
+                      { k: "quarta", label: "Quarta-feira" },
+                      { k: "quinta", label: "Quinta-feira" },
+                      { k: "sexta", label: "Sexta-feira" },
+                      { k: "sabado", label: "Sábado" },
+                      { k: "domingo", label: "Domingo" },
+                    ];
+                    let json: any = {};
+                    try {
+                      json = profissional.horariosTrabalho ? JSON.parse(profissional.horariosTrabalho) : {};
+                    } catch {
+                      json = {};
+                    }
+                    return dias.map(({ k, label }) => {
+                      const d = json[k] || { aberto: false, inicio: "09:00", fim: "18:00" };
+                      return (
+                        <div key={k} className="border rounded-lg p-4 space-y-3">
+                          <div className="flex items-center gap-2 mb-3">
+                            <input
+                              id={`${k}_aberto`}
+                              name={`${k}_aberto`}
+                              type="checkbox"
+                              defaultChecked={!!d.aberto}
+                              className="h-4 w-4"
+                            />
+                            <label htmlFor={`${k}_aberto`} className="text-sm font-medium text-gray-700">
+                              {label}
+                            </label>
+                          </div>
+                          
+                          {d.aberto && (
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 ml-6">
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Início</label>
+                                <input
+                                  name={`${k}_inicio`}
+                                  type="time"
+                                  defaultValue={d.inicio || "09:00"}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Fim</label>
+                                <input
+                                  name={`${k}_fim`}
+                                  type="time"
+                                  defaultValue={d.fim || "18:00"}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Almoço Início (opcional)</label>
+                                <input
+                                  name={`${k}_almocoInicio`}
+                                  type="time"
+                                  defaultValue={d.almocoInicio || ""}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                  placeholder="12:00"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Almoço Fim (opcional)</label>
+                                <input
+                                  name={`${k}_almocoFim`}
+                                  type="time"
+                                  defaultValue={d.almocoFim || ""}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                  placeholder="13:00"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
 
               <div className="flex justify-between pt-6 border-t">
