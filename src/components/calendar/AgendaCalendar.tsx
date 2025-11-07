@@ -52,6 +52,16 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
     return selected < today;
   }, [selectedDateStr]);
 
+  const closeModal = () => {
+    setSelectedEvent(null);
+    setSlots([]);
+    setSelectedSlot('');
+    setSelectedDateStr('');
+    setErrorMsg('');
+    setSuccessMsg('');
+    setSaving(false);
+  };
+
   // Carregar horários automaticamente ao abrir o modal e quando a data mudar
   useEffect(() => {
     const fetchSlots = async () => {
@@ -419,26 +429,38 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-lg bg-white shadow-lg">
             <div className="border-b border-gray-200 px-4 py-3">
-              <h3 className="text-base font-semibold text-gray-900">Agendamento</h3>
-              <p className="mt-1 text-sm text-gray-600">
-                {selectedEvent.resource.cliente} — {selectedEvent.resource.servico} — {selectedEvent.resource.profissional}
-              </p>
-              <div className="mt-2 flex items-center gap-2 text-xs">
-                <span className="text-gray-500">Status:</span>
-                <span className="inline-flex items-center rounded-full px-2 py-0.5 font-medium"
-                  style={{
-                    backgroundColor:
-                      selectedEvent.resource.status === 'pendente' ? '#FEF3C7' :
-                      selectedEvent.resource.status === 'confirmado' ? '#D1FAE5' :
-                      selectedEvent.resource.status === 'cancelado' ? '#FEE2E2' : '#E0E7FF',
-                    color:
-                      selectedEvent.resource.status === 'pendente' ? '#92400E' :
-                      selectedEvent.resource.status === 'confirmado' ? '#065F46' :
-                      selectedEvent.resource.status === 'cancelado' ? '#991B1B' : '#3730A3',
-                  }}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <h3 className="text-base font-semibold text-gray-900">Agendamento</h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {selectedEvent.resource.cliente} — {selectedEvent.resource.servico} — {selectedEvent.resource.profissional}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2 text-xs">
+                    <span className="text-gray-500">Status:</span>
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 font-medium"
+                      style={{
+                        backgroundColor:
+                          selectedEvent.resource.status === 'pendente' ? '#FEF3C7' :
+                          selectedEvent.resource.status === 'confirmado' ? '#D1FAE5' :
+                          selectedEvent.resource.status === 'cancelado' ? '#FEE2E2' : '#E0E7FF',
+                        color:
+                          selectedEvent.resource.status === 'pendente' ? '#92400E' :
+                          selectedEvent.resource.status === 'confirmado' ? '#065F46' :
+                          selectedEvent.resource.status === 'cancelado' ? '#991B1B' : '#3730A3',
+                      }}
+                    >
+                      {selectedEvent.resource.status}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  aria-label="Fechar modal"
+                  className="rounded-full p-2 text-red-500 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200"
                 >
-                  {selectedEvent.resource.status}
-                </span>
+                  <span className="text-lg leading-none">×</span>
+                </button>
               </div>
             </div>
 
@@ -554,18 +576,6 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
 
               <button
                 type="button"
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                onClick={() => {
-                  setSelectedEvent(null);
-                  setSlots([]);
-                  setErrorMsg('');
-                  setSuccessMsg('');
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
                 className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
                 disabled={!selectedEvent?.resource.ids || !selectedDateStr || !selectedSlot || saving}
                 onClick={async () => {
@@ -598,10 +608,7 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
                     setSuccessMsg('Agendamento reagendado com sucesso.');
                     // Atualização simples: fechar modal após breve delay
                     setTimeout(() => {
-                      setSelectedEvent(null);
-                      setSlots([]);
-                      setErrorMsg('');
-                      setSuccessMsg('');
+                      closeModal();
                       // Opcional: refresh da página
                       if (typeof window !== 'undefined') window.location.reload();
                     }, 800);
