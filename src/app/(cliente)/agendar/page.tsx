@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useTenantFetch } from "@/hooks/useTenantFetch";
 
 type Servico = {
   id: string;
@@ -22,6 +23,7 @@ type HorariosResponse = {
 
 export default function AgendarPage() {
   const router = useRouter();
+  const tenantFetch = useTenantFetch();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   
@@ -40,8 +42,8 @@ export default function AgendarPage() {
     async function carregar() {
       try {
         const [resServicos, resProfissionais] = await Promise.all([
-          fetch("/api/public/servicos"),
-          fetch("/api/public/profissionais"),
+          tenantFetch("/api/public/servicos"),
+          tenantFetch("/api/public/profissionais"),
         ]);
 
         if (resServicos.ok) {
@@ -57,7 +59,7 @@ export default function AgendarPage() {
       }
     }
     carregar();
-  }, []);
+  }, [tenantFetch]);
 
   const buscarHorarios = useCallback(async () => {
     if (!servicoSelecionado || !profissionalSelecionado || !dataSelecionada) {
@@ -66,7 +68,7 @@ export default function AgendarPage() {
     setLoadingHorarios(true);
     setHorarioSelecionado("");
     try {
-      const response = await fetch(
+      const response = await tenantFetch(
         `/api/horarios-disponiveis?servicoId=${servicoSelecionado}&profissionalId=${profissionalSelecionado}&data=${dataSelecionada}`
       );
       if (response.ok) {
@@ -79,7 +81,7 @@ export default function AgendarPage() {
     } finally {
       setLoadingHorarios(false);
     }
-  }, [servicoSelecionado, profissionalSelecionado, dataSelecionada]);
+  }, [servicoSelecionado, profissionalSelecionado, dataSelecionada, tenantFetch]);
 
   useEffect(() => {
     if (servicoSelecionado && profissionalSelecionado && dataSelecionada) {
@@ -110,7 +112,7 @@ export default function AgendarPage() {
     };
 
     try {
-      const response = await fetch("/api/agendamentos", {
+      const response = await tenantFetch("/api/agendamentos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
