@@ -46,7 +46,7 @@ export default function ProfissionaisList({ profissionais }: Props) {
       }
 
       router.refresh();
-    } catch (error) {
+    } catch {
       alert("Erro ao deletar profissional");
     }
   }

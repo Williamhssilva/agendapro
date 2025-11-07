@@ -48,7 +48,7 @@ export default function ServicosList({ servicos, categorias }: Props) {
       }
 
       router.refresh();
-    } catch (error) {
+    } catch {
       alert("Erro ao deletar serviço");
     }
   }

@@ -1,6 +1,31 @@
 import { prisma } from "./prisma";
 import { format, addMinutes, parse, isBefore, isAfter, startOfDay, endOfDay } from "date-fns";
 
+type HorarioConfigurado = {
+  aberto?: boolean | string;
+  inicio?: string;
+  fim?: string;
+  almocoInicio?: string;
+  almocoFim?: string;
+};
+
+type HorariosConfigurados = Record<string, HorarioConfigurado>;
+
+function parseHorariosJson(value?: string | null): HorariosConfigurados {
+  if (!value) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (parsed && typeof parsed === "object") {
+      return parsed as HorariosConfigurados;
+    }
+  } catch {
+    // ignora erros de parsing e usa objeto vazio
+  }
+  return {};
+}
+
 /**
  * Calcula horários disponíveis para um profissional em uma data
  */
@@ -58,14 +83,8 @@ export async function calcularHorariosDisponiveis({
   // - Se Estabelecimento estiver FECHADO no dia → retorna [] (independentemente do profissional)
   // - Se Profissional não tiver horário no dia → usa horário do Estabelecimento
   // - Se ambos tiverem, usa início/fim do Profissional
-  let horariosProf: any = {};
-  let horariosEstab: any = {};
-  try {
-    if (profissional.horariosTrabalho) horariosProf = JSON.parse(profissional.horariosTrabalho);
-  } catch { horariosProf = {}; }
-  try {
-    if (configuracao?.horariosFuncionamento) horariosEstab = JSON.parse(configuracao.horariosFuncionamento);
-  } catch { horariosEstab = {}; }
+  const horariosProf: HorariosConfigurados = parseHorariosJson(profissional.horariosTrabalho);
+  const horariosEstab: HorariosConfigurados = parseHorariosJson(configuracao?.horariosFuncionamento);
 
   const diaSemana = getDiaSemana(dataLocal);
   const diaEstab = horariosEstab[diaSemana];

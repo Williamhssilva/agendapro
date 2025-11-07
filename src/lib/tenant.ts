@@ -1,6 +1,9 @@
 import { headers } from 'next/headers';
+import type { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { isDbUnavailable } from './errors';
+
+type TenantWithPlano = Prisma.EstabelecimentoGetPayload<{ include: { plano: true } }>;
 
 /**
  * Busca o tenant baseado no subdomain da requisição
@@ -90,7 +93,7 @@ export async function requireTenant(estabelecimentoId?: string) {
 /**
  * Verifica se o tenant pode usar uma feature baseado no plano
  */
-export function canUseFeature(tenant: any, feature: 'personalizacao' | 'dominio' | 'api') {
+export function canUseFeature(tenant: TenantWithPlano, feature: 'personalizacao' | 'dominio' | 'api') {
   switch (feature) {
     case 'personalizacao':
       return tenant.plano.temPersonalizacao;

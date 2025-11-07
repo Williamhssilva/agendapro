@@ -86,7 +86,7 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
         const horarios: string[] = Array.isArray(data) ? data : (data.horarios || []);
         setSlots(horarios);
         setSelectedSlot(horarios[0] || '');
-      } catch (err) {
+      } catch {
         setSlots([]);
         setSelectedSlot('');
         setErrorMsg('Não foi possível carregar horários disponíveis.');
@@ -612,7 +612,7 @@ export default function AgendaCalendar({ agendamentos }: AgendaCalendarProps) {
                       // Opcional: refresh da página
                       if (typeof window !== 'undefined') window.location.reload();
                     }, 800);
-                  } catch (err: any) {
+                  } catch {
                     setErrorMsg('Não foi possível reagendar.');
                   } finally {
                     setSaving(false);
