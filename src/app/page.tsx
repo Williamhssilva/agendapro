@@ -1,13 +1,8 @@
 import Link from 'next/link';
-import { getTenantBySubdomain } from '@/lib/tenant';
 
-  // Sem tenant = Página de marketing do AgendaPro
-export default async function HomePage() {
-  const tenant = await getTenantBySubdomain();
-  if (tenant) {
-    // Quando houver subdomínio, deixamos o middleware reescrever para /(cliente)/loja
-    return null;
-  }
+// Sem tenant = Página de marketing do AgendaPro
+// O middleware já cuida de redirecionar subdomínios para /loja
+export default function HomePage() {
   return (
     <div className="min-h-screen relative bg-white">
       {/* Background decor */}
