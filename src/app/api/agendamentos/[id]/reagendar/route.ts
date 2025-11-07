@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { verificarDisponibilidade } from '@/lib/horarios';
+import type { Prisma } from '@prisma/client';
+
+type AgendamentoComRelacionamentos = Prisma.AgendamentoGetPayload<{
+  include: { cliente: true; servico: true; profissional: true };
+}>;
+
+type ErrorWithCode = Error & { code?: string };
+
+function isErrorWithCode(error: unknown): error is ErrorWithCode {
+  return typeof error === 'object' && error !== null && 'code' in error;
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -85,8 +96,8 @@ export async function PATCH(
 
     // Retry simples para conflitos de escrita
     const MAX_RETRY = 3;
-    let updated: any = null;
-    let lastErr: any = null;
+    let updated: AgendamentoComRelacionamentos | null = null;
+    let lastErr: ErrorWithCode | null = null;
 
     for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
       try {
@@ -99,18 +110,16 @@ export async function PATCH(
           );
 
           // Revalidar disponibilidade dentro da transação
-          const disponivel = await (async () => {
-            return await verificarDisponibilidade({
-              estabelecimentoId: agendamento.estabelecimentoId,
-              profissionalId: profissionalIdDestino,
-              dataHora: novaData,
-              duracao: agendamento.duracao,
-              agendamentoIdExcluir: agendamento.id,
-            });
-          })();
+          const disponivel = await verificarDisponibilidade({
+            estabelecimentoId: agendamento.estabelecimentoId,
+            profissionalId: profissionalIdDestino,
+            dataHora: novaData,
+            duracao: agendamento.duracao,
+            agendamentoIdExcluir: agendamento.id,
+          });
 
           if (!disponivel) {
-            const err: any = new Error('TIME_CONFLICT');
+            const err = new Error('TIME_CONFLICT') as ErrorWithCode;
             err.code = 'TIME_CONFLICT';
             throw err;
           }
@@ -130,8 +139,8 @@ export async function PATCH(
           });
         }, { isolationLevel: 'Serializable' });
         break;
-      } catch (err: any) {
-        if (err.code === 'P2034' || err.code === 'TIME_CONFLICT') {
+      } catch (err: unknown) {
+        if (isErrorWithCode(err) && (err.code === 'P2034' || err.code === 'TIME_CONFLICT')) {
           lastErr = err;
           await new Promise((r) => setTimeout(r, 100 * attempt));
           continue;

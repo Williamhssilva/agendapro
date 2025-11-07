@@ -1,5 +1,7 @@
 import { getTenantBySubdomain } from "@/lib/tenant";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
 
 export default async function ClienteLayout({
   children,
@@ -32,9 +34,15 @@ export default async function ClienteLayout({
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <a href="/" className="flex items-center space-x-3">
+            <Link href="/" className="flex items-center space-x-3">
               {tenant.logoUrl ? (
-                <img src={tenant.logoUrl} alt={tenant.nome} className="h-12 w-12 object-cover rounded-lg" />
+                <Image
+                  src={tenant.logoUrl}
+                  alt={tenant.nome}
+                  width={48}
+                  height={48}
+                  className="h-12 w-12 object-cover rounded-lg"
+                />
               ) : (
                 <div className="tenant-primary-bg h-12 w-12 rounded-lg flex items-center justify-center text-white font-bold text-lg">
                   {tenant.nome.substring(0, 2).toUpperCase()}
@@ -46,14 +54,14 @@ export default async function ClienteLayout({
                   <p className="text-xs text-gray-600">📍 {tenant.cidade}, {tenant.estado}</p>
                 )}
               </div>
-            </a>
+            </Link>
             
-            <a
+            <Link
               href="/agendar"
               className="tenant-primary-bg px-6 py-2 rounded-lg text-white font-medium hover:opacity-90 transition"
             >
               Agendar
-            </a>
+            </Link>
           </div>
         </div>
       </header>
