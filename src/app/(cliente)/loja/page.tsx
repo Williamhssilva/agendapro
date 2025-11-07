@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getTenantBySubdomain } from '@/lib/tenant';
 import { prisma } from '@/lib/prisma';
+import { TenantLink } from '@/components/TenantLink';
 
 export default async function LojaHomePage() {
   const tenant = await getTenantBySubdomain();
@@ -23,12 +24,12 @@ export default async function LojaHomePage() {
       <div className="tenant-primary-bg text-white rounded-2xl p-12 mb-12">
         <h2 className="text-4xl font-bold mb-2">{tenant.nome}</h2>
         <p className="opacity-90 mb-6">Agende seu horário online</p>
-        <Link
+        <TenantLink
           href="/agendar"
           className="bg-white text-gray-900 font-semibold px-6 py-3 rounded-lg hover:bg-opacity-90 transition"
         >
           Agendar Agora →
-        </Link>
+        </TenantLink>
       </div>
 
       {/* Serviços */}
@@ -77,12 +78,12 @@ export default async function LojaHomePage() {
       <div className="bg-white rounded-2xl shadow-sm ring-1 ring-gray-100 p-10 text-center">
         <h3 className="text-2xl font-bold text-gray-900 mb-2">Pronto para agendar?</h3>
         <p className="text-gray-600 mb-6">Escolha o melhor horário e confirme online.</p>
-        <Link
+        <TenantLink
           href="/agendar"
           className="tenant-primary-bg text-white font-semibold px-8 py-3 rounded-lg hover:opacity-90 transition"
         >
           Agendar meu horário →
-        </Link>
+        </TenantLink>
       </div>
     </div>
   );
