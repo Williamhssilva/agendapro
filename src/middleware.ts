@@ -3,10 +3,16 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || '';
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
   
-  // Extrair subdomain
-  const subdomain = extractSubdomain(hostname);
+  // Extrair subdomain (via hostname ou query parameter)
+  let subdomain = extractSubdomain(hostname);
+  
+  // Suporte a ?tenant=SLUG para testes sem domínio customizado
+  const tenantFromQuery = searchParams.get('tenant');
+  if (tenantFromQuery && !subdomain) {
+    subdomain = tenantFromQuery;
+  }
   
   if (subdomain) {
     // TEM subdomain = Área do Cliente
@@ -17,6 +23,7 @@ export function middleware(request: NextRequest) {
     if (pathname === '/') {
       const url = request.nextUrl.clone();
       url.pathname = '/loja';
+      // Preserva o query parameter tenant para próximas navegações
       return NextResponse.rewrite(url, {
         request: { headers: requestHeaders },
       });
