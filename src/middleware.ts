@@ -45,7 +45,21 @@ function extractSubdomain(hostname: string): string | null {
     return null;
   }
   
-  // Produção: salaobella.agendapro.com.br
+  // Ignorar domínios .vercel.app (são o domínio principal, não subdomain)
+  if (hostname.includes('.vercel.app')) {
+    // Se for algo.vercel.app (3 partes), é domínio principal
+    const parts = hostname.split('.');
+    if (parts.length === 3 && parts[2] === 'app' && parts[1] === 'vercel') {
+      return null;
+    }
+    // Se for sub.algo.vercel.app (4+ partes), o primeiro é subdomain
+    if (parts.length >= 4) {
+      return parts[0];
+    }
+    return null;
+  }
+  
+  // Produção com domínio customizado: salaobella.agendapro.com.br
   const parts = hostname.split('.');
   if (parts.length >= 3) {
     // Ignorar "www"
