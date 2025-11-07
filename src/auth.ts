@@ -4,6 +4,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import type { AdapterUser } from "next-auth/adapters";
+import type { JWT } from "next-auth/jwt";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -57,15 +59,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        token.estabelecimentoId = (user as any).estabelecimentoId;
+      if (user && "estabelecimentoId" in user) {
+        const usuario = user as AdapterUser & { estabelecimentoId?: string };
+        if (typeof usuario.estabelecimentoId === "string") {
+          (token as JWT & { estabelecimentoId?: string }).estabelecimentoId = usuario.estabelecimentoId;
+        }
       }
       return token;
     },
     async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.sub as string;
-        session.user.estabelecimentoId = token.estabelecimentoId as string;
+      if (session.user) {
+        const sessionUser = session.user as typeof session.user & {
+          id?: string;
+          estabelecimentoId?: string;
+        };
+
+        if (typeof token.sub === "string") {
+          sessionUser.id = token.sub;
+        }
+
+        const tokenWithEstabelecimento = token as JWT & { estabelecimentoId?: unknown };
+        if (typeof tokenWithEstabelecimento.estabelecimentoId === "string") {
+          sessionUser.estabelecimentoId = tokenWithEstabelecimento.estabelecimentoId;
+        }
       }
       return session;
     },

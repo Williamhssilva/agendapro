@@ -102,8 +102,8 @@ export default async function AgendaPage({
     return acc;
   }, {} as Record<string, number>);
 
-  const proximosDias = Object.entries(contagemPorDia)
-    .map(([data, total]) => ({ data, total }))
+  const proximosDias: Array<{ data: string; total: number }> = Object.entries(contagemPorDia)
+    .map(([data, total]): { data: string; total: number } => ({ data, total: Number(total) }))
     .sort((a, b) => a.data.localeCompare(b.data));
 
   // Stats do dia
