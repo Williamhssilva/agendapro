@@ -1,6 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
+import { useCallback } from 'react';
 
 /**
  * Hook que retorna uma função fetch customizada que automaticamente
@@ -10,7 +11,8 @@ export function useTenantFetch() {
   const searchParams = useSearchParams();
   const tenant = searchParams.get('tenant');
 
-  return (url: string, options?: RequestInit) => {
+  // CRITICAL: useCallback para evitar loop infinito
+  return useCallback((url: string, options?: RequestInit) => {
     // Se tiver tenant no query param, adiciona à URL
     if (tenant) {
       const separator = url.includes('?') ? '&' : '?';
@@ -18,6 +20,6 @@ export function useTenantFetch() {
     }
     
     return fetch(url, options);
-  };
+  }, [tenant]); // Só recria se tenant mudar
 }
 
