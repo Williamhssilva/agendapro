@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTenantFetch } from "@/hooks/useTenantFetch";
 
 type Servico = {
@@ -23,6 +23,7 @@ type HorariosResponse = {
 
 export default function AgendarPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const tenantFetch = useTenantFetch();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -135,7 +136,9 @@ export default function AgendarPage() {
       const agendamento = await response.json();
       
       // Redirecionar para confirmação com dados
-      router.push(`/agendar/confirmacao?id=${agendamento.id}`);
+      const tenantParam = searchParams.get("tenant");
+      const separator = tenantParam ? `&tenant=${tenantParam}` : "";
+      router.push(`/agendar/confirmacao?id=${agendamento.id}${separator}`);
     } catch (err) {
       console.error("Erro:", err);
       setError("Erro ao criar agendamento. Tente novamente.");

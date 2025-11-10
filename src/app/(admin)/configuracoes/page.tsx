@@ -34,9 +34,23 @@ async function updateHorarios(formData: FormData) {
     horarios[dia] = aberto ? { aberto: true, inicio, fim } : { aberto: false };
   }
 
+  const antecedenciaMinimaValue = (() => {
+    const raw = formData.get("antecedenciaMinima");
+    if (typeof raw === "string") {
+      const parsed = Number(raw);
+      if (!Number.isNaN(parsed) && parsed >= 0) {
+        return parsed;
+      }
+    }
+    return 120;
+  })();
+
   await prisma.configuracao.update({
     where: { estabelecimentoId },
-    data: { horariosFuncionamento: JSON.stringify(horarios) },
+    data: {
+      horariosFuncionamento: JSON.stringify(horarios),
+      antecedenciaMinima: antecedenciaMinimaValue,
+    },
   });
 
   // Revalidar a página para mostrar os novos horários
@@ -149,7 +163,23 @@ export default async function ConfiguracoesPage() {
 
       <div className="mt-6 bg-white p-6 rounded-lg shadow">
         <h2 className="text-lg font-semibold mb-2">Horários de Funcionamento</h2>
-        <form action={updateHorarios} className="space-y-4">
+        <form action={updateHorarios} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Antecedência mínima (minutos)</label>
+              <input
+                name="antecedenciaMinima"
+                type="number"
+                min={0}
+                step={15}
+                defaultValue={configuracao?.antecedenciaMinima ?? 120}
+                className="mt-1 w-full border rounded p-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Tempo mínimo antes do horário para permitir novos agendamentos.
+              </p>
+            </div>
+          </div>
           {(() => {
             const dias = [
               { k: "segunda", label: "Segunda" },
