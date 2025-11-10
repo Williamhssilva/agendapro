@@ -78,24 +78,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Identificar estabelecimento (session ou subdomain)
     const session = await auth();
-    let estabelecimentoId: string | null = null;
+    const headersList = await headers();
+    const tenantHeader = headersList.get("x-tenant-slug");
+    const tenantQuery = new URL(request.url).searchParams.get("tenant");
+    const slugPreferencial = tenantHeader || tenantQuery || null;
 
-    if (session) {
-      // Admin logado
+    let estabelecimentoId: string | null = null;
+    if (slugPreferencial) {
+      const tenant = await prisma.estabelecimento.findUnique({
+        where: { slug: slugPreferencial },
+      });
+      estabelecimentoId = tenant?.id || null;
+    } else if (session) {
       estabelecimentoId = session.user.estabelecimentoId;
-    } else {
-      // Cliente público - pega do subdomain
-      const headersList = await headers();
-      const tenantSlug = headersList.get("x-tenant-slug");
-      
-      if (tenantSlug) {
-        const tenant = await prisma.estabelecimento.findUnique({
-          where: { slug: tenantSlug },
-        });
-        estabelecimentoId = tenant?.id || null;
-      }
     }
 
     if (!estabelecimentoId) {
@@ -145,7 +141,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verificação adicional: buscar agendamentos exatos no mesmo horário (proteção contra corrida)
+    // Verificação adicional: buscar agendamentos exatos
     const agendamentoExistente = await prisma.agendamento.findFirst({
       where: {
         estabelecimentoId,
@@ -163,11 +159,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Criar dentro de transação serializável com advisory lock por profissional+dia
     const dataAlvoLocalChave = addMinutes(dataAlvo, timezoneOffsetMinutes);
     const diaChave = `${dataAlvoLocalChave.getFullYear()}-${String(dataAlvoLocalChave.getMonth()+1).padStart(2,'0')}-${String(dataAlvoLocalChave.getDate()).padStart(2,'0')}`;
 
-    // Retry simples para conflitos de escrita (P2034)
     const MAX_RETRY = 3;
     let lastErr: any = null;
     let agendamento: any = null;
@@ -243,7 +237,7 @@ export async function POST(request: Request) {
       }
 
       // Status: admin confirma automaticamente, público fica pendente
-      const status = session ? "confirmado" : "pendente";
+      const status = session && !slugPreferencial ? "confirmado" : "pendente";
       return await tx.agendamento.create({
         data: {
           estabelecimentoId,
@@ -279,14 +273,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json(agendamento, { status: 201 });
   } catch (error: any) {
-    // Conflito detectado pela camada de aplicação/transação
+    // Conflito detectado
     if (error?.code === 'TIME_CONFLICT' || error?.message === 'TIME_CONFLICT') {
       return NextResponse.json(
         { error: "Este horário acabou de ser ocupado por outro cliente. Tente outro horário." },
         { status: 409 }
       );
     }
-    // Conflito/Deadlock mesmo após retries
     if (error?.code === 'P2034') {
       return NextResponse.json(
         { error: "Conflito de concorrência. O horário acabou de ser ocupado. Tente outro." },
@@ -299,7 +292,6 @@ export async function POST(request: Request) {
         { status: 503 }
       );
     }
-    // Prisma/Postgres errors mapeáveis (opcionalmente tratar P2002, etc.)
     console.error("Erro ao criar agendamento:", error);
     return NextResponse.json(
       { error: "Erro ao criar agendamento. Tente novamente." },
