@@ -75,7 +75,6 @@ export default async function AdminLayout({
           tenantPlan={tenant?.plano.nome}
           userName={session.user?.name}
           userInitials={session.user?.name?.substring(0, 2).toUpperCase() || "US"}
-          navItems={adminNavItems}
           signOutAction={signOutAction}
         />
         <div className="flex-1 overflow-auto">{children}</div>

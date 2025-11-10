@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { AdminNavItem } from "@/components/admin/navItems";
+import { adminNavItems } from "@/components/admin/navItems";
 
 type AdminMobileNavProps = {
   tenantName?: string | null;
   tenantPlan?: string | null;
   userName?: string | null;
   userInitials?: string | null;
-  navItems: AdminNavItem[];
   signOutAction: () => Promise<void>;
 };
 
@@ -19,7 +18,6 @@ export function AdminMobileNav({
   tenantPlan,
   userName,
   userInitials,
-  navItems,
   signOutAction,
 }: AdminMobileNavProps) {
   const [open, setOpen] = useState(false);
@@ -70,7 +68,7 @@ export function AdminMobileNav({
           </div>
 
           <nav className="px-2 pb-4 space-y-1">
-            {navItems.map((item) => {
+            {adminNavItems.map((item) => {
               const active = pathname === item.href;
               return (
                 <Link
