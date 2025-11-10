@@ -145,6 +145,7 @@ export default function AgendarPage() {
 
   const servicoAtual = servicos.find(s => s.id === servicoSelecionado);
   const profissionalAtual = profissionais.find(p => p.id === profissionalSelecionado);
+  const dataResumo = dataSelecionada ? new Date(`${dataSelecionada}T00:00:00`) : null;
 
   const dataMinima = new Date(); // permite hoje; slots de hoje serão filtrados pela antecedência mínima (2h)
 
@@ -353,7 +354,7 @@ export default function AgendarPage() {
             <div className="space-y-2 mb-6">
               <p><strong>Serviço:</strong> {servicoAtual?.nome} - R$ {servicoAtual?.preco.toFixed(2)}</p>
               <p><strong>Profissional:</strong> {profissionalAtual?.nome}</p>
-              <p><strong>Data:</strong> {new Date(dataSelecionada).toLocaleDateString("pt-BR")}</p>
+              <p><strong>Data:</strong> {dataResumo?.toLocaleDateString("pt-BR")}</p>
               <p><strong>Horário:</strong> {horarioSelecionado}</p>
               <p><strong>Duração:</strong> {servicoAtual?.duracao} minutos</p>
             </div>
