@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { format, addMinutes, parse, isBefore, isAfter, startOfDay, endOfDay } from "date-fns";
+import { format, addMinutes, parse, isBefore, isAfter, isSameDay } from "date-fns";
 
 type HorarioConfigurado = {
   aberto?: boolean | string;
@@ -10,6 +10,14 @@ type HorarioConfigurado = {
 };
 
 type HorariosConfigurados = Record<string, HorarioConfigurado>;
+
+function formatOffset(minutes: number) {
+  const sign = minutes >= 0 ? "+" : "-";
+  const abs = Math.abs(minutes);
+  const hours = Math.floor(abs / 60);
+  const mins = abs % 60;
+  return `${sign}${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+}
 
 function parseHorariosJson(value?: string | null): HorariosConfigurados {
   if (!value) {
@@ -65,18 +73,21 @@ export async function calcularHorariosDisponiveis({
   // Antecedência mínima: regra atual exige 2h no mínimo
   const antecedenciaMinimaConfig = configuracao?.antecedenciaMinima ?? 0;
   const antecedenciaMinimaMinutos = Math.max(antecedenciaMinimaConfig, 120);
-  
-  // Verificar se é hoje para aplicar antecedência mínima
-  const hoje = new Date();
-  
-  // Converter data UTC para local (Brasil UTC-3)
-  const dataLocal = new Date(data.getTime() + (3 * 60 * 60 * 1000));
-  const hojeLocal = new Date(hoje.getTime() + (3 * 60 * 60 * 1000));
-  
-  const dataSelecionada = new Date(dataLocal.getFullYear(), dataLocal.getMonth(), dataLocal.getDate());
-  const hojeComparacao = new Date(hojeLocal.getFullYear(), hojeLocal.getMonth(), hojeLocal.getDate());
-  const ehHoje = dataSelecionada.getTime() === hojeComparacao.getTime();
-  
+
+  // TODO: tornar configurável por estabelecimento
+  const timezoneOffsetMinutes =
+    (configuracao ? (configuracao as Record<string, any>).fusoHorarioMinutos : undefined) ?? -180; // São Paulo (UTC-3) por padrão
+  const offsetStr = formatOffset(timezoneOffsetMinutes);
+  const dataISO = format(data, "yyyy-MM-dd");
+
+  const inicioDiaUtc = new Date(`${dataISO}T00:00:00${offsetStr}`);
+  const fimDiaUtc = new Date(`${dataISO}T23:59:59${offsetStr}`);
+
+  const dataSelecionadaLocal = addMinutes(inicioDiaUtc, timezoneOffsetMinutes);
+  const agora = new Date();
+  const agoraLocal = addMinutes(agora, timezoneOffsetMinutes);
+  const ehHoje = isSameDay(agoraLocal, dataSelecionadaLocal);
+  const limiteMinimoLocal = addMinutes(agoraLocal, antecedenciaMinimaMinutos);
 
   // 4. Determinar horários finais considerando Estabelecimento e Profissional
   // Regras:
@@ -86,7 +97,7 @@ export async function calcularHorariosDisponiveis({
   const horariosProf: HorariosConfigurados = parseHorariosJson(profissional.horariosTrabalho);
   const horariosEstab: HorariosConfigurados = parseHorariosJson(configuracao?.horariosFuncionamento);
 
-  const diaSemana = getDiaSemana(dataLocal);
+  const diaSemana = getDiaSemana(dataSelecionadaLocal);
   const diaEstab = horariosEstab[diaSemana];
   const diaProf = horariosProf[diaSemana];
 
@@ -139,15 +150,12 @@ export async function calcularHorariosDisponiveis({
   const fimFinal = `${pad(Math.floor(endMin / 60))}:${pad(endMin % 60)}`;
 
   // 5. Buscar agendamentos do profissional neste dia (usando limites do dia local)
-  const inicioDia = startOfDay(dataLocal);
-  const fimDia = endOfDay(dataLocal);
-
   const agendamentos = await prisma.agendamento.findMany({
     where: {
       profissionalId,
       dataHora: {
-        gte: inicioDia,
-        lte: fimDia,
+        gte: inicioDiaUtc,
+        lte: fimDiaUtc,
       },
       status: {
         in: ["pendente", "confirmado"],
@@ -164,36 +172,33 @@ export async function calcularHorariosDisponiveis({
 
   // 7. Gerar slots de horários
   const slots: string[] = [];
-  const horaInicio = parse(inicioFinal, "HH:mm", data);
-  const horaFim = parse(fimFinal, "HH:mm", data);
+  const horaInicioLocal = parse(inicioFinal, "HH:mm", dataSelecionadaLocal);
+  const horaFimLocal = parse(fimFinal, "HH:mm", dataSelecionadaLocal);
 
-  let horaAtual = horaInicio;
-  const agora = new Date();
-  const limiteMinimo = addMinutes(agora, antecedenciaMinimaMinutos);
+  let horaAtualLocal = horaInicioLocal;
 
-  while (isBefore(horaAtual, horaFim)) {
-    const horaFimSlot = addMinutes(horaAtual, servico.duracao);
+  while (isBefore(horaAtualLocal, horaFimLocal)) {
+    const horaFimSlotLocal = addMinutes(horaAtualLocal, servico.duracao);
 
     // Verificar se o slot completo cabe no horário de trabalho
-    if (isAfter(horaFimSlot, horaFim)) {
+    if (isAfter(horaFimSlotLocal, horaFimLocal)) {
       break;
     }
 
     // Verificar se o slot conflita com horário de almoço
     if (almocoInicio !== null && almocoFim !== null) {
-      const horaAtualMin = horaAtual.getHours() * 60 + horaAtual.getMinutes();
-      const horaFimSlotMin = horaFimSlot.getHours() * 60 + horaFimSlot.getMinutes();
+      const horaAtualMin = horaAtualLocal.getHours() * 60 + horaAtualLocal.getMinutes();
+      const horaFimSlotMin = horaFimSlotLocal.getHours() * 60 + horaFimSlotLocal.getMinutes();
       
       // Se o slot sobrepõe o horário de almoço (início antes do fim do almoço E fim depois do início do almoço)
       if (horaAtualMin < almocoFim && horaFimSlotMin > almocoInicio) {
-        // Pular para depois do almoço
         const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
         const almocoFimStr = `${pad(Math.floor(almocoFim / 60))}:${pad(almocoFim % 60)}`;
-        const almocoFimDate = parse(almocoFimStr, "HH:mm", data);
+        const almocoFimDate = parse(almocoFimStr, "HH:mm", dataSelecionadaLocal);
         
         // Garantir que não ultrapasse o fim do dia
-        if (isBefore(almocoFimDate, horaFim)) {
-          horaAtual = almocoFimDate;
+        if (isBefore(almocoFimDate, horaFimLocal)) {
+          horaAtualLocal = almocoFimDate;
         } else {
           break; // Almoço vai até o fim do dia, não há mais slots
         }
@@ -203,38 +208,37 @@ export async function calcularHorariosDisponiveis({
 
     // Respeitar antecedência mínima apenas se for hoje
     if (ehHoje) {
-      const slotHora = horaAtual.getHours() * 60 + horaAtual.getMinutes();
-      const limiteHora = limiteMinimo.getHours() * 60 + limiteMinimo.getMinutes();
+      const slotHora = horaAtualLocal.getHours() * 60 + horaAtualLocal.getMinutes();
+      const limiteHora = limiteMinimoLocal.getHours() * 60 + limiteMinimoLocal.getMinutes();
       if (slotHora < limiteHora) {
-        horaAtual = addMinutes(horaAtual, servico.duracao + intervaloMinutos);
+        horaAtualLocal = addMinutes(horaAtualLocal, servico.duracao + intervaloMinutos);
         continue;
       }
     }
 
+    const slotInicioMin = horaAtualLocal.getHours() * 60 + horaAtualLocal.getMinutes();
+    const slotFimMin = horaFimSlotLocal.getHours() * 60 + horaFimSlotLocal.getMinutes();
+
     // Verificar se não conflita com agendamentos existentes
     const conflito = agendamentos.some((agendamento) => {
-      const agendamentoInicio = new Date(agendamento.dataHora);
-      const agendamentoFim = addMinutes(agendamentoInicio, agendamento.servico.duracao);
+      const agendamentoInicioLocal = addMinutes(new Date(agendamento.dataHora), timezoneOffsetMinutes);
+      const agendamentoFimLocal = addMinutes(agendamentoInicioLocal, agendamento.servico.duracao);
 
-      // Comparar apenas os horários (HH:mm), não as datas completas
-      const horaAtualTime = horaAtual.getHours() * 60 + horaAtual.getMinutes();
-      const horaFimSlotTime = horaFimSlot.getHours() * 60 + horaFimSlot.getMinutes();
-      const agendamentoInicioTime = agendamentoInicio.getHours() * 60 + agendamentoInicio.getMinutes();
-      const agendamentoFimTime = agendamentoFim.getHours() * 60 + agendamentoFim.getMinutes();
+      const agendamentoInicioMin = agendamentoInicioLocal.getHours() * 60 + agendamentoInicioLocal.getMinutes();
+      const agendamentoFimMin = agendamentoFimLocal.getHours() * 60 + agendamentoFimLocal.getMinutes();
 
-      // Verifica se há sobreposição de horários
       return (
-        (horaAtualTime < agendamentoFimTime && horaFimSlotTime > agendamentoInicioTime) ||
-        horaAtualTime === agendamentoInicioTime
+        (slotInicioMin < agendamentoFimMin && slotFimMin > agendamentoInicioMin) ||
+        slotInicioMin === agendamentoInicioMin
       );
     });
 
     if (!conflito) {
-      slots.push(format(horaAtual, "HH:mm"));
+      slots.push(format(horaAtualLocal, "HH:mm"));
     }
 
     // Próximo slot (duração do serviço + intervalo)
-    horaAtual = addMinutes(horaAtual, servico.duracao + intervaloMinutos);
+    horaAtualLocal = addMinutes(horaAtualLocal, servico.duracao + intervaloMinutos);
   }
 
   return slots;
@@ -265,12 +269,13 @@ export async function verificarDisponibilidade({
   agendamentoIdExcluir?: string;
 }) {
   const fimAgendamento = addMinutes(dataHora, duracao);
+  const timezoneOffsetMinutes = -180;
+  const offsetStr = formatOffset(timezoneOffsetMinutes);
 
-  // Buscar todos os agendamentos do dia para verificar sobreposição corretamente
-  // Converter dataHora UTC para local (Brasil UTC-3)
-  const dataHoraLocal = new Date(dataHora.getTime() + (3 * 60 * 60 * 1000));
-  const inicioDia = startOfDay(dataHoraLocal);
-  const fimDia = endOfDay(dataHoraLocal);
+  const dataHoraLocal = addMinutes(dataHora, timezoneOffsetMinutes);
+  const dataISO = format(dataHoraLocal, "yyyy-MM-dd");
+  const inicioDiaUtc = new Date(`${dataISO}T00:00:00${offsetStr}`);
+  const fimDiaUtc = new Date(`${dataISO}T23:59:59${offsetStr}`);
 
   const agendamentos = await prisma.agendamento.findMany({
     where: {
@@ -278,20 +283,22 @@ export async function verificarDisponibilidade({
       profissionalId,
       id: agendamentoIdExcluir ? { not: agendamentoIdExcluir } : undefined,
       status: { in: ["pendente", "confirmado"] },
-      dataHora: { gte: inicioDia, lte: fimDia },
+      dataHora: { gte: inicioDiaUtc, lte: fimDiaUtc },
     },
     include: { servico: true },
   });
 
+  const novoInicioLocal = addMinutes(dataHora, timezoneOffsetMinutes);
+  const novoFimLocal = addMinutes(fimAgendamento, timezoneOffsetMinutes);
+  const novoInicioTime = novoInicioLocal.getHours() * 60 + novoInicioLocal.getMinutes();
+  const novoFimTime = novoFimLocal.getHours() * 60 + novoFimLocal.getMinutes();
+
   for (const agendamento of agendamentos) {
-    const agendamentoInicio = new Date(agendamento.dataHora);
-    const agendamentoFim = addMinutes(agendamentoInicio, agendamento.servico.duracao);
+    const agendamentoInicioLocal = addMinutes(new Date(agendamento.dataHora), timezoneOffsetMinutes);
+    const agendamentoFimLocal = addMinutes(agendamentoInicioLocal, agendamento.servico.duracao);
     
-    // Comparar apenas os horários (HH:mm), não as datas completas
-    const novoInicioTime = dataHora.getHours() * 60 + dataHora.getMinutes();
-    const novoFimTime = fimAgendamento.getHours() * 60 + fimAgendamento.getMinutes();
-    const agendamentoInicioTime = agendamentoInicio.getHours() * 60 + agendamentoInicio.getMinutes();
-    const agendamentoFimTime = agendamentoFim.getHours() * 60 + agendamentoFim.getMinutes();
+    const agendamentoInicioTime = agendamentoInicioLocal.getHours() * 60 + agendamentoInicioLocal.getMinutes();
+    const agendamentoFimTime = agendamentoFimLocal.getHours() * 60 + agendamentoFimLocal.getMinutes();
     
     // Sobreposição: novoInicio < existenteFim && novoFim > existenteInicio
     if (novoInicioTime < agendamentoFimTime && novoFimTime > agendamentoInicioTime) {

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { verificarDisponibilidade } from '@/lib/horarios';
 import type { Prisma } from '@prisma/client';
+import { addMinutes } from 'date-fns';
 
 type AgendamentoComRelacionamentos = Prisma.AgendamentoGetPayload<{
   include: { cliente: true; servico: true; profissional: true };
@@ -71,20 +72,26 @@ export async function PATCH(
     const novaData = new Date(dataHora);
     const agora = new Date();
 
-    if (novaData < agora) {
+    const config = await prisma.configuracao.findUnique({ where: { estabelecimentoId: agendamento.estabelecimentoId } });
+    const antecedenciaMinimaConfig = config?.antecedenciaMinima ?? 0;
+    const antecedenciaMinimaMin = Math.max(antecedenciaMinimaConfig, 120);
+    const timezoneOffsetMinutes =
+      (config ? (config as Record<string, any>).fusoHorarioMinutos : undefined) ?? -180;
+
+    const novaDataLocal = addMinutes(novaData, timezoneOffsetMinutes);
+    const agoraLocal = addMinutes(agora, timezoneOffsetMinutes);
+
+    if (novaDataLocal < agoraLocal) {
       return NextResponse.json({ error: 'Não é possível reagendar para o passado' }, { status: 400 });
     }
 
     // Regra de antecedência mínima (2h no mínimo para hoje)
-    const config = await prisma.configuracao.findUnique({ where: { estabelecimentoId: agendamento.estabelecimentoId } });
-    const antecedenciaMinimaConfig = config?.antecedenciaMinima ?? 0;
-    const antecedenciaMinimaMin = Math.max(antecedenciaMinimaConfig, 120);
-    const limiteMinimo = new Date(agora.getTime() + antecedenciaMinimaMin * 60000);
+    const limiteMinimoLocal = addMinutes(agoraLocal, antecedenciaMinimaMin);
 
-    const ehMesmoDia = (d1: Date, d2: Date) =>
+    const ehMesmoDiaLocal = (d1: Date, d2: Date) =>
       d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
 
-    if (ehMesmoDia(novaData, agora) && novaData < limiteMinimo) {
+    if (ehMesmoDiaLocal(novaDataLocal, agoraLocal) && novaDataLocal < limiteMinimoLocal) {
       return NextResponse.json(
         { error: `Reagendamento requer pelo menos ${antecedenciaMinimaMin} minutos de antecedência para hoje.` },
         { status: 400 }
@@ -92,7 +99,7 @@ export async function PATCH(
     }
 
     // Preparar chave de lock por profissional+dia (UTC day bucket)
-    const diaChave = `${novaData.getUTCFullYear()}-${String(novaData.getUTCMonth() + 1).padStart(2, '0')}-${String(novaData.getUTCDate()).padStart(2, '0')}`;
+    const diaChave = `${novaDataLocal.getFullYear()}-${String(novaDataLocal.getMonth() + 1).padStart(2, '0')}-${String(novaDataLocal.getDate()).padStart(2, '0')}`;
 
     // Retry simples para conflitos de escrita
     const MAX_RETRY = 3;

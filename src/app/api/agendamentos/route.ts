@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { verificarDisponibilidade } from "@/lib/horarios";
 import { isDbUnavailable } from "@/lib/errors";
 import { headers } from "next/headers";
+import { addMinutes } from "date-fns";
 
 // GET - Listar agendamentos
 export async function GET(request: Request) {
@@ -117,10 +118,12 @@ export async function POST(request: Request) {
     const config = await prisma.configuracao.findUnique({ where: { estabelecimentoId } });
     const antecedenciaMinimaConfig = config?.antecedenciaMinima ?? 0;
     const antecedenciaMinimaMin = Math.max(antecedenciaMinimaConfig, 120);
-    const agora = new Date();
+    const timezoneOffsetMinutes =
+      (config ? (config as Record<string, any>).fusoHorarioMinutos : undefined) ?? -180;
     const dataAlvo = new Date(dataHora);
-    const limiteMinimo = new Date(agora.getTime() + antecedenciaMinimaMin * 60000);
-    if (dataAlvo < limiteMinimo) {
+    const dataAlvoLocal = addMinutes(dataAlvo, timezoneOffsetMinutes);
+    const limiteMinimoLocal = addMinutes(addMinutes(new Date(), timezoneOffsetMinutes), antecedenciaMinimaMin);
+    if (dataAlvoLocal < limiteMinimoLocal) {
       return NextResponse.json(
         { error: `Agendamentos devem ser feitos com pelo menos ${antecedenciaMinimaMin} minutos de antecedência.` },
         { status: 400 }
@@ -161,7 +164,8 @@ export async function POST(request: Request) {
     }
 
     // Criar dentro de transação serializável com advisory lock por profissional+dia
-    const diaChave = `${dataAlvo.getUTCFullYear()}-${String(dataAlvo.getUTCMonth()+1).padStart(2,'0')}-${String(dataAlvo.getUTCDate()).padStart(2,'0')}`;
+    const dataAlvoLocalChave = addMinutes(dataAlvo, timezoneOffsetMinutes);
+    const diaChave = `${dataAlvoLocalChave.getFullYear()}-${String(dataAlvoLocalChave.getMonth()+1).padStart(2,'0')}-${String(dataAlvoLocalChave.getDate()).padStart(2,'0')}`;
 
     // Retry simples para conflitos de escrita (P2034)
     const MAX_RETRY = 3;
@@ -179,26 +183,37 @@ export async function POST(request: Request) {
 
       // Revalidar disponibilidade dentro da transação
       const aindaDisponivel = await (async () => {
-        const inicioDia = new Date(Date.UTC(dataAlvo.getUTCFullYear(), dataAlvo.getUTCMonth(), dataAlvo.getUTCDate(), 0, 0, 0, 0));
-        const fimDia = new Date(Date.UTC(dataAlvo.getUTCFullYear(), dataAlvo.getUTCMonth(), dataAlvo.getUTCDate(), 23, 59, 59, 999));
+        const dataAlvoLocalInterno = addMinutes(dataAlvo, timezoneOffsetMinutes);
+        const inicioDiaLocal = new Date(dataAlvoLocalInterno);
+        inicioDiaLocal.setHours(0, 0, 0, 0);
+        const fimDiaLocal = new Date(dataAlvoLocalInterno);
+        fimDiaLocal.setHours(23, 59, 59, 999);
+        const inicioDiaUtcInterno = addMinutes(inicioDiaLocal, -timezoneOffsetMinutes);
+        const fimDiaUtcInterno = addMinutes(fimDiaLocal, -timezoneOffsetMinutes);
+
         const existentes = await tx.agendamento.findMany({
           where: {
             estabelecimentoId,
             profissionalId,
             status: { in: ["pendente", "confirmado"] },
-            dataHora: { gte: inicioDia, lte: fimDia },
+            dataHora: { gte: inicioDiaUtcInterno, lte: fimDiaUtcInterno },
           },
           include: { servico: true },
         });
-        const novoInicio = new Date(dataHora);
-        const novoFim = new Date(novoInicio.getTime() + servico.duracao * 60000);
-        const novoInicioTime = novoInicio.getHours() * 60 + novoInicio.getMinutes();
-        const novoFimTime = novoFim.getHours() * 60 + novoFim.getMinutes();
+
+        const novoInicioUtc = new Date(dataHora);
+        const novoFimUtc = new Date(novoInicioUtc.getTime() + servico.duracao * 60000);
+        const novoInicioLocal = addMinutes(novoInicioUtc, timezoneOffsetMinutes);
+        const novoFimLocal = addMinutes(novoFimUtc, timezoneOffsetMinutes);
+        const novoInicioTime = novoInicioLocal.getHours() * 60 + novoInicioLocal.getMinutes();
+        const novoFimTime = novoFimLocal.getHours() * 60 + novoFimLocal.getMinutes();
+
         for (const ag of existentes) {
-          const eInicio = new Date(ag.dataHora);
-          const eFim = new Date(eInicio.getTime() + ag.servico.duracao * 60000);
-          const eInicioTime = eInicio.getHours() * 60 + eInicio.getMinutes();
-          const eFimTime = eFim.getHours() * 60 + eFim.getMinutes();
+          const eInicioUtc = new Date(ag.dataHora);
+          const eInicioLocal = addMinutes(eInicioUtc, timezoneOffsetMinutes);
+          const eFimLocal = addMinutes(eInicioLocal, ag.servico.duracao);
+          const eInicioTime = eInicioLocal.getHours() * 60 + eInicioLocal.getMinutes();
+          const eFimTime = eFimLocal.getHours() * 60 + eFimLocal.getMinutes();
           if (novoInicioTime < eFimTime && novoFimTime > eInicioTime) {
             return false;
           }
